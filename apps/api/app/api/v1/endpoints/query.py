@@ -1,6 +1,7 @@
 """
 RAG query endpoints for semantic search and LLM-powered responses.
 """
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -46,7 +47,7 @@ class QueryResponse(BaseModel):
 async def query_knowledge_base(request: QueryRequest):
     """
     Query the knowledge base using semantic search and optional LLM generation.
-    
+
     Steps:
     1. Generate embedding for the query
     2. Search vector database for relevant documents
@@ -79,8 +80,10 @@ async def query_knowledge_base(request: QueryRequest):
         llm_response = None
         if request.use_llm and search_results:
             context = "\n\n".join(
-                [f"[Source: {r['metadata'].get('sourceURL', 'Unknown')}]\n{r['content']}" 
-                 for r in search_results[:3]]
+                [
+                    f"[Source: {r['metadata'].get('sourceURL', 'Unknown')}]\n{r['content']}"
+                    for r in search_results[:3]
+                ]
             )
             llm_response = await llm_service.generate_response(
                 query=request.query,

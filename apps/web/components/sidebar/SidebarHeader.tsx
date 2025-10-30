@@ -11,7 +11,7 @@ export function SidebarHeader({ onAddSource }: SidebarHeaderProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
           </svg>
         </div>
-        <span className="text-sm font-semibold">GraphRAG</span>
+        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">GraphRAG</span>
       </div>
       <button 
         onClick={onAddSource}

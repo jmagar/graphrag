@@ -65,6 +65,24 @@
         color: var(--color-foreground);
         font-family: var(--font-sans);
     }
+
+    /* Focus visible indicators for accessibility */
+    *:focus-visible {
+        outline: 2px solid hsl(var(--ring));
+        outline-offset: 2px;
+    }
+
+    /* Dark mode focus ring */
+    .dark *:focus-visible {
+        outline-color: hsl(212.7 26.8% 83.9%);
+    }
+
+    /* Custom focus for buttons */
+    button:focus-visible {
+        outline: 2px solid hsl(217 91.2% 59.8%);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 4px hsla(217 91.2% 59.8% / 0.2);
+    }
 }
 
 /* Custom Scrollbar */
@@ -109,4 +127,115 @@
 
 .dark .command-item.selected {
     background: rgb(39 39 42) !important;
+}
+
+/* Crawl progress animations */
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.animate-shimmer {
+    animation: shimmer 2s infinite;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+}
+
+/* Streaming content animation */
+@keyframes stream-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-stream-in {
+    animation: stream-in 0.2s ease-out forwards;
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .message-animate {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+
+    .animate-fade-in,
+    .animate-stream-in {
+        animation: reduced-fade 0.15s ease-out;
+    }
+
+    .animate-bounce {
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes reduced-fade {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .border {
+        border-width: 2px !important;
+    }
+
+    *:focus-visible {
+        outline-width: 3px !important;
+        outline-offset: 3px !important;
+    }
+
+    button {
+        border: 2px solid currentColor !important;
+    }
+}
+
+/* Windows High Contrast Mode */
+@media (forced-colors: active) {
+    .message-animate {
+        border: 1px solid CanvasText;
+    }
+
+    button {
+        border: 2px solid ButtonText;
+    }
+
+    *:focus {
+        outline: 3px solid Highlight;
+    }
 }

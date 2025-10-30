@@ -1,6 +1,7 @@
 """
 LLM service for generating responses using Ollama.
 """
+
 import httpx
 from typing import Optional
 from app.core.config import settings
@@ -21,12 +22,12 @@ class LLMService:
     ) -> str:
         """
         Generate a response using the LLM based on the query and context.
-        
+
         Args:
             query: User's question
             context: Retrieved context from vector database
             system_prompt: Optional custom system prompt
-            
+
         Returns:
             Generated response text
         """

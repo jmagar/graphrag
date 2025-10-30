@@ -15,7 +15,11 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const [showCommands, setShowCommands] = useState(false);
   const [showMentions, setShowMentions] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [filteredCommands, setFilteredCommands] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // All available commands
+  const allCommands = ['/scrape', '/crawl', '/map', '/search', '/extract'];
 
   // Auto-resize textarea
   const adjustTextareaHeight = () => {
@@ -43,6 +47,16 @@ export function ChatInput({ onSend }: ChatInputProps) {
     const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ');
     
     if (lastSlashIndex !== -1 && lastSlashIndex > lastSpaceIndex) {
+      // Extract the text after the slash
+      const commandText = textBeforeCursor.substring(lastSlashIndex + 1).toLowerCase();
+      
+      // Filter commands based on what user typed
+      const filtered = allCommands.filter(cmd => 
+        cmd.toLowerCase().substring(1).startsWith(commandText) || 
+        cmd.toLowerCase().includes(commandText)
+      );
+      
+      setFilteredCommands(filtered.length > 0 ? filtered : allCommands);
       setShowCommands(true);
       setShowMentions(false);
       setSelectedCommandIndex(0);
@@ -63,18 +77,74 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Escape key closes dropdowns
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setShowCommands(false);
+      setShowMentions(false);
+      return;
+    }
+
     // Command dropdown navigation
     if (showCommands) {
-      if (e.key === 'ArrowDown') {
+      const commandsToUse = filteredCommands.length > 0 ? filteredCommands : allCommands;
+      const maxIndex = commandsToUse.length - 1;
+      
+      if (e.key === 'Tab') {
+        // Tab cycles through commands
         e.preventDefault();
-        setSelectedCommandIndex((prev) => Math.min(prev + 1, 6));
+        setSelectedCommandIndex((prev) => (prev + 1) % commandsToUse.length);
+        return;
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => Math.min(prev + 1, maxIndex));
+        return;
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedCommandIndex((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === 'Escape') {
-        setShowCommands(false);
+        return;
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        // Enter selects command if dropdown is open
+        e.preventDefault();
+        if (commandsToUse[selectedCommandIndex]) {
+          handleCommandSelect(commandsToUse[selectedCommandIndex]);
+        }
+        return;
+      } else if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+        // Type a letter to jump to closest matching command in filtered list
+        e.preventDefault();
+        const letter = e.key.toLowerCase();
+        
+        // Search in command names (without the slash)
+        const commandNames = commandsToUse.map(cmd => cmd.substring(1));
+        
+        // Find first command starting with this letter
+        let foundIndex = commandNames.findIndex(cmd => cmd.startsWith(letter));
+        
+        // If no exact start match, find command containing the letter
+        if (foundIndex === -1) {
+          foundIndex = commandNames.findIndex(cmd => cmd.includes(letter));
+        }
+        
+        // If found, jump to it
+        if (foundIndex !== -1) {
+          setSelectedCommandIndex(foundIndex);
+        }
+        return;
       }
-      return;
+    }
+
+    // Mention dropdown navigation
+    if (showMentions) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        // TODO: Add mention navigation when needed
+        return;
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        // TODO: Select mention
+        return;
+      }
     }
 
     // Enter to send (Shift+Enter for new line)
@@ -139,6 +209,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
                 selectedIndex={selectedCommandIndex}
                 onSelect={handleCommandSelect}
                 onHover={setSelectedCommandIndex}
+                filteredCommands={filteredCommands.length > 0 ? filteredCommands : allCommands}
               />
             )}
             

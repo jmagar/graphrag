@@ -1,16 +1,30 @@
 """
 FastAPI main application entry point.
 """
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.api.v1.router import api_router
+from app.db.database import init_db, close_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events."""
+    # Startup: Initialize database
+    await init_db()
+    yield
+    # Shutdown: Close database connections
+    await close_db()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="GraphRAG API with Firecrawl v2, Qdrant, and TEI embeddings",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan,
 )
 
 # CORS middleware

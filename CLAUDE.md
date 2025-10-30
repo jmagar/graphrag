@@ -32,9 +32,11 @@ npm run dev:web               # Frontend only
 **Backend (FastAPI):**
 ```bash
 cd apps/api
-python -m app.main            # Run server (uvicorn auto-reload enabled)
-black app/                    # Format code
-mypy app/                     # Type checking
+uv run python -m app.main     # Run server (uvicorn auto-reload enabled)
+uv run black app/             # Format code
+uv run mypy app/              # Type checking
+uv sync                       # Install/update dependencies
+uv sync --dev                 # Include dev dependencies
 ```
 
 **Frontend (Next.js):**
@@ -214,6 +216,26 @@ Tests not yet implemented. When adding:
 **TDD Enforcement**: No PR should be merged without tests. Write the test first, watch it fail, then implement.
 
 ## Environment Configuration
+
+### Python Dependency Management
+
+This project uses **[uv](https://github.com/astral-sh/uv)** for fast, reliable Python dependency management:
+
+- **No Poetry or pip-tools**: We use modern PEP 621 `pyproject.toml` with uv
+- **Virtual environment**: `.venv` directory (auto-created by `uv sync`)
+- **Lock file**: `uv.lock` (committed to repo for reproducibility)
+- **Setup**: Run `uv sync --dev` in `apps/api/` to install all dependencies
+
+**Key uv commands:**
+```bash
+uv sync              # Install dependencies from pyproject.toml
+uv sync --dev        # Include dev dependencies (pytest, black, ruff, mypy)
+uv add <package>     # Add a new dependency
+uv run <command>     # Run command in virtual environment
+uv pip list          # List installed packages
+```
+
+### Service URLs
 
 The `.env` file at repository root contains all service URLs:
 ```

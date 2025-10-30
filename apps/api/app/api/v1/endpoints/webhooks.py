@@ -1,8 +1,9 @@
 """
 Webhook endpoints for receiving callbacks from Firecrawl.
 """
+
 from fastapi import APIRouter, BackgroundTasks, Request
-from typing import Dict, Any, List
+from typing import Dict, Any
 from app.services.embeddings import EmbeddingsService
 from app.services.vector_db import VectorDBService
 import hashlib
@@ -15,7 +16,7 @@ vector_db_service = VectorDBService()
 async def process_crawled_page(page_data: Dict[str, Any]):
     """
     Process a crawled page: generate embeddings and store in vector DB.
-    
+
     Args:
         page_data: Page data from Firecrawl webhook
     """
@@ -53,7 +54,7 @@ async def process_crawled_page(page_data: Dict[str, Any]):
 async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Webhook endpoint for Firecrawl callbacks.
-    
+
     Firecrawl sends webhooks for:
     - crawl.started: When a crawl begins
     - crawl.page: Each page that is crawled
@@ -78,13 +79,13 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
             crawl_id = payload.get("id")
             total_pages = len(payload.get("data", []))
             print(f"✓ Crawl completed: {crawl_id} ({total_pages} pages)")
-            
+
             # Process all pages if they weren't sent individually
             data = payload.get("data", [])
             if data:
                 for page_data in data:
                     background_tasks.add_task(process_crawled_page, page_data)
-            
+
             return {"status": "completed", "pages_processed": total_pages}
 
         elif event_type == "crawl.failed":

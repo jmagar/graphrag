@@ -1,9 +1,17 @@
 """
 Qdrant vector database service.
 """
+
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
+from qdrant_client.models import (
+    Distance,
+    VectorParams,
+    PointStruct,
+    Filter,
+    FieldCondition,
+    MatchValue,
+)
 from app.core.config import settings
 
 
@@ -22,10 +30,10 @@ class VectorDBService:
 
         if self.collection_name not in collection_names:
             # Create collection with appropriate vector size
-            # Adjust size based on your embedding model (e.g., 768 for many models)
+            # Qwen3-Embedding-0.6B outputs 1024 dimensions
             self.client.create_collection(
                 collection_name=self.collection_name,
-                vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
             )
 
     async def upsert_document(
@@ -37,7 +45,7 @@ class VectorDBService:
     ):
         """
         Insert or update a document in the vector database.
-        
+
         Args:
             doc_id: Unique identifier for the document
             embedding: Vector embedding of the content
@@ -68,13 +76,13 @@ class VectorDBService:
     ) -> List[Dict[str, Any]]:
         """
         Search for similar documents.
-        
+
         Args:
             query_embedding: Vector embedding of the query
             limit: Maximum number of results to return
             score_threshold: Minimum similarity score
             filters: Optional filters to apply
-            
+
         Returns:
             List of matching documents with scores
         """

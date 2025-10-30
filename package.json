@@ -10,11 +10,12 @@
   "scripts": {
     "dev": "npm run kill-ports && concurrently \"npm run dev:api\" \"npm run dev:web\"",
     "dev:web": "npm run dev --workspace=apps/web",
-    "dev:api": "cd apps/api && venv/bin/python -m app.main",
+    "dev:api": "cd apps/api && uv run python -m app.main",
     "kill-ports": "bash kill-ports.sh",
     "build": "npm run build --workspaces",
     "lint": "npm run lint --workspaces",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
+    "quality": "bash scripts/check-quality.sh"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

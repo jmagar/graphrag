@@ -1,12 +1,45 @@
 "use client";
 
+import { useState } from 'react';
 import { WorkflowCard } from '../workflows/WorkflowCard';
+import { ToolsInfo } from '../tools/ToolsInfo';
 
 export function RightSidebar() {
+  const [activeTab, setActiveTab] = useState<'workflows' | 'tools'>('workflows');
+
   return (
-    <aside className="w-72 border-l border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 overflow-y-auto custom-scroll p-4">
-      <div className="space-y-3">
-        <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">Workflows</div>
+    <aside className="w-72 border-l border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 overflow-y-auto custom-scroll flex flex-col">
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+        <button
+          onClick={() => setActiveTab('workflows')}
+          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === 'workflows'
+              ? 'text-zinc-900 dark:text-zinc-100 border-b-2 border-zinc-900 dark:border-zinc-100'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+          }`}
+        >
+          Workflows
+        </button>
+        <button
+          onClick={() => setActiveTab('tools')}
+          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+            activeTab === 'tools'
+              ? 'text-zinc-900 dark:text-zinc-100 border-b-2 border-zinc-900 dark:border-zinc-100'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+          }`}
+        >
+          Tools
+        </button>
+      </div>
+
+      {/* Content */}
+      {activeTab === 'tools' ? (
+        <ToolsInfo />
+      ) : (
+        <div className="p-4">
+          <div className="space-y-3">
+            <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">Workflows</div>
         
         <WorkflowCard
           title="Create"
@@ -84,7 +117,9 @@ export function RightSidebar() {
             </svg>
           }
         />
-      </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

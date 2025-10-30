@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { CodeBlock } from './CodeBlock';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 type ArtifactType = 'markdown' | 'code' | 'text' | 'json' | 'html';
 
@@ -30,48 +31,46 @@ export function Artifact({ type, content, language = 'text', title, url }: Artif
       case 'markdown':
         return (
           <div className="p-4 overflow-auto max-h-[600px] bg-white dark:bg-zinc-900">
-            <div className="prose prose-sm max-w-none prose-headings:text-zinc-900 prose-p:text-zinc-800 prose-a:text-blue-600 prose-strong:text-zinc-900 prose-code:text-zinc-900 prose-pre:bg-zinc-100 prose-li:text-zinc-800">
+            <div className="prose prose-sm max-w-none prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-p:text-zinc-800 dark:prose-p:text-zinc-200 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100 prose-code:text-zinc-900 dark:prose-code:text-zinc-100 prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-800 prose-li:text-zinc-800 dark:prose-li:text-zinc-200">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                   // Remove all images (including logos, flags, etc.)
                   img: () => null,
-                  
+
                   // Code blocks with syntax highlighting
-                  code({ node, inline, className, children, ...props }) {
+                  code({ node, className, children, ...props }: any) {
                     const match = /language-(\w+)/.exec(className || '');
-                    return !inline && match ? (
-                      <SyntaxHighlighter
-                        style={vscDarkPlus as any}
-                        language={match[1]}
-                        PreTag="div"
-                        {...props}
-                      >
-                        {String(children).replace(/\n$/, '')}
-                      </SyntaxHighlighter>
-                    ) : (
-                      <code className="bg-zinc-100 text-zinc-900 px-1.5 py-0.5 rounded text-xs" {...props}>
-                        {children}
-                      </code>
+                    const inline = !match;
+                    const language = match ? match[1] : 'text';
+                    const value = String(children).replace(/\n$/, '');
+
+                    return (
+                      <CodeBlock
+                        language={language}
+                        value={value}
+                        inline={inline}
+                      />
                     );
                   },
                   
                   // Explicit colors for headings
-                  h1: ({ children }) => <h1 className="text-2xl font-bold text-zinc-900 mt-6 mb-4">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-xl font-bold text-zinc-900 mt-5 mb-3">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-lg font-semibold text-zinc-900 mt-4 mb-2">{children}</h3>,
+                  h1: ({ children }) => <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mt-6 mb-4">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-5 mb-3">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-4 mb-2">{children}</h3>,
                   
                   // Paragraph styling
-                  p: ({ children }) => <p className="text-zinc-800 leading-relaxed mb-4">{children}</p>,
-                  
+                  p: ({ children }) => <p className="text-zinc-800 dark:text-zinc-200 leading-relaxed mb-4">{children}</p>,
+
                   // List styling
-                  ul: ({ children }) => <ul className="list-disc list-inside text-zinc-800 mb-4 space-y-1">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal list-inside text-zinc-800 mb-4 space-y-1">{children}</ol>,
-                  li: ({ children }) => <li className="text-zinc-800">{children}</li>,
+                  ul: ({ children }) => <ul className="list-disc list-inside text-zinc-800 dark:text-zinc-200 mb-4 space-y-1">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside text-zinc-800 dark:text-zinc-200 mb-4 space-y-1">{children}</ol>,
+                  li: ({ children }) => <li className="text-zinc-800 dark:text-zinc-200">{children}</li>,
                   
                   // Links
                   a: ({ href, children }) => (
-                    <a href={href} className="text-blue-600 hover:text-blue-700 underline" target="_blank" rel="noopener noreferrer">
+                    <a href={href} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">
                       {children}
                     </a>
                   ),
@@ -86,20 +85,14 @@ export function Artifact({ type, content, language = 'text', title, url }: Artif
       case 'code':
       case 'json':
       case 'html':
+        const codeLanguage = type === 'json' ? 'json' : type === 'html' ? 'html' : language;
         return (
-          <div className="overflow-auto max-h-[600px]">
-            <SyntaxHighlighter
-              language={type === 'json' ? 'json' : type === 'html' ? 'html' : language}
-              style={vscDarkPlus as any}
-              customStyle={{
-                margin: 0,
-                borderRadius: '0 0 0.5rem 0.5rem',
-                fontSize: '0.875rem',
-              }}
-              showLineNumbers
-            >
-              {content}
-            </SyntaxHighlighter>
+          <div className="overflow-auto max-h-[600px] [&_.shiki-code-block]:my-0 [&_.shiki-code-block]:rounded-none [&_.shiki-code-block]:border-none">
+            <CodeBlock
+              language={codeLanguage}
+              value={content}
+              inline={false}
+            />
           </div>
         );
 

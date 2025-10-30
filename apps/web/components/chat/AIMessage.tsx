@@ -1,12 +1,23 @@
+import { memo } from 'react';
 import { Avatar } from './Avatar';
 import { Citation } from './Citation';
 import { MessageActions } from './MessageActions';
 import { Artifact } from './Artifact';
+import { ToolCall } from './ToolCall';
+import { CrawlProgress } from '../crawl/CrawlProgress';
+import { CodeBlock } from './CodeBlock';
+import { MermaidDiagram } from './MermaidDiagram';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface AIMessageProps {
   content: string[];
   citations?: Array<{ number: number; title: string }>;
   timestamp?: string;
+  isStreaming?: boolean;
   artifact?: {
     type: 'markdown' | 'code' | 'text' | 'json' | 'html';
     content: string;
@@ -14,30 +25,172 @@ interface AIMessageProps {
     title?: string;
     url?: string;
   };
+  toolCalls?: Array<{
+    command: string;
+    args?: string;
+  }>;
+  crawl?: {
+    jobId: string;
+    status: string;
+    url: string;
+    data?: {
+      completed: number;
+      total: number;
+      creditsUsed: number;
+      expiresAt?: string;
+      recentPages?: Array<{ url: string; status: string }>;
+    };
+  };
+  onCancelCrawl?: (jobId: string) => void;
 }
 
-export function AIMessage({ content, citations, timestamp = "2:34 PM", artifact }: AIMessageProps) {
-  const handleCopy = () => {
+const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStreaming = false, artifact, toolCalls, crawl, onCancelCrawl }: AIMessageProps) => {
+  const handleCopy = async () => {
     const textToCopy = artifact ? artifact.content : content.join('\n\n');
-    navigator.clipboard.writeText(textToCopy);
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+    } catch (error) {
+      throw new Error('Failed to copy message');
+    }
   };
 
+  // Check if we should show typing indicator
+  const hasNoContent = content.length === 0 || (content.length === 1 && content[0] === '');
+  const showTypingIndicator = isStreaming && hasNoContent && (!toolCalls || toolCalls.length === 0);
+
   return (
-    <div className="message-animate flex gap-2 md:gap-4 group">
-      <div className="flex-shrink-0">
+    <article
+      role="article"
+      aria-label={`AI assistant response${timestamp ? ` at ${timestamp}` : ''}`}
+      className="message-animate flex gap-3 md:gap-5 group px-4 md:px-6 py-4 md:py-5 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 rounded-2xl transition-colors duration-200"
+    >
+      <div className="flex-shrink-0" aria-hidden="true">
         <Avatar type="ai" />
       </div>
-      <div className="flex-1 min-w-0 space-y-2 md:space-y-3 pt-0.5">
-        <div className="text-sm md:text-base leading-relaxed text-zinc-800 dark:text-zinc-100 space-y-2 md:space-y-3">
-          {content.map((paragraph, index) => (
-            <p
-              key={index}
-              className="animate-fade-in break-words"
-              style={{ animationDelay: `${index * 0.1}s` }}
-              dangerouslySetInnerHTML={{ __html: paragraph }}
-            />
-          ))}
-        </div>
+      <div className="flex-1 min-w-0 space-y-3 md:space-y-4 pt-1">
+        {/* Render tool calls if present */}
+        {toolCalls && toolCalls.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {toolCalls.map((toolCall, index) => (
+              <ToolCall
+                key={index}
+                command={toolCall.command}
+                args={toolCall.args}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Show typing indicator when streaming with no content */}
+        {showTypingIndicator ? (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-zinc-50 to-transparent dark:from-zinc-900/50 dark:to-transparent rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 backdrop-blur-sm"
+          >
+            <div className="flex gap-1.5" aria-hidden="true">
+              <div className="w-2 h-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full animate-bounce shadow-sm motion-reduce:animate-pulse" style={{ animationDelay: '0ms', animationDuration: '0.6s' }} />
+              <div className="w-2 h-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full animate-bounce shadow-sm motion-reduce:animate-pulse" style={{ animationDelay: '150ms', animationDuration: '0.6s' }} />
+              <div className="w-2 h-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full animate-bounce shadow-sm motion-reduce:animate-pulse" style={{ animationDelay: '300ms', animationDuration: '0.6s' }} />
+            </div>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+              AI assistant is thinking...
+            </span>
+          </div>
+        ) : (
+          <div
+            role="log"
+            aria-live="polite"
+            aria-atomic="false"
+            aria-relevant="additions text"
+            className="prose prose-base max-w-none text-[15px] md:text-base space-y-3 md:space-y-4"
+          >
+            {content.map((paragraph, index) => (
+              <div
+                key={index}
+                className="animate-stream-in break-words"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={{
+                    // Remove all images
+                    img: () => null,
+
+                    // Code blocks - use new CodeBlock or Mermaid
+                    code({ node, className, children, ...props }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const inline = !match;
+                      const language = match ? match[1] : 'text';
+                      const value = String(children).replace(/\n$/, '');
+
+                      // Mermaid diagrams
+                      if (language === 'mermaid') {
+                        return <MermaidDiagram chart={value} />;
+                      }
+
+                      // Regular code blocks
+                      return (
+                        <CodeBlock
+                          language={language}
+                          value={value}
+                          inline={inline}
+                        />
+                      );
+                    },
+
+                    // Headings with better spacing
+                    h1: ({ children }) => <h1 className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-zinc-50 mt-8 mb-5 tracking-tight">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 mt-6 mb-4 tracking-tight">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 mt-5 mb-3">{children}</h3>,
+
+                    // Paragraph with better line height and contrast
+                    p: ({ children }) => <p className="text-zinc-900/90 dark:text-zinc-100/90 leading-[1.7] mb-3">{children}</p>,
+
+                    // Lists with better spacing
+                    ul: ({ children }) => <ul className="list-disc list-outside ml-5 text-zinc-800 dark:text-zinc-200 mb-3 space-y-2">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-outside ml-5 text-zinc-800 dark:text-zinc-200 mb-3 space-y-2">{children}</ol>,
+                    li: ({ children }) => <li className="text-zinc-800 dark:text-zinc-200 pl-2">{children}</li>,
+
+                    // Links with better underline
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline decoration-blue-600/40 dark:decoration-blue-400/40 hover:decoration-blue-600 dark:hover:decoration-blue-400 underline-offset-2 transition-all duration-150"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {children}
+                      </a>
+                    ),
+
+                    // Strong with proper contrast
+                    strong: ({ children }) => <strong className="font-semibold text-zinc-900 dark:text-white">{children}</strong>,
+                  }}
+                >
+                  {paragraph}
+                </ReactMarkdown>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Render crawl progress if present */}
+        {crawl && crawl.data && (
+          <CrawlProgress
+            jobId={crawl.jobId}
+            url={crawl.url}
+            status={crawl.status}
+            completed={crawl.data.completed}
+            total={crawl.data.total}
+            creditsUsed={crawl.data.creditsUsed}
+            expiresAt={crawl.data.expiresAt}
+            recentPages={crawl.data.recentPages}
+            onCancel={onCancelCrawl ? () => onCancelCrawl(crawl.jobId) : undefined}
+          />
+        )}
 
         {/* Render artifact if present */}
         {artifact && (
@@ -68,6 +221,9 @@ export function AIMessage({ content, citations, timestamp = "2:34 PM", artifact 
           onRegenerate={() => {}}
         />
       </div>
-    </div>
+    </article>
   );
-}
+};
+
+// Export memoized component
+export const AIMessage = memo(AIMessageComponent);

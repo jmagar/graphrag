@@ -25,7 +25,7 @@ export function ChatHeader({ onLeftMenuClick, onRightMenuClick }: ChatHeaderProp
           {onLeftMenuClick && <MobileMenu onClick={onLeftMenuClick} side="left" />}
           
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <h2 className="text-sm font-semibold truncate">GraphRAG Configuration</h2>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">GraphRAG Configuration</h2>
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-500">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
               <span>3 sources</span>

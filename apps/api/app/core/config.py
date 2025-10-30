@@ -1,6 +1,7 @@
 """
 Application configuration using Pydantic settings.
 """
+
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -49,6 +50,10 @@ class Settings(BaseSettings):
 
     # Webhook URL for Firecrawl callbacks
     WEBHOOK_BASE_URL: str = "http://localhost:8000"
+
+    # Database
+    DATABASE_URL: str = "sqlite+aiosqlite:///./graphrag.db"
+    DEBUG: bool = False
 
 
 settings = Settings()

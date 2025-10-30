@@ -6,7 +6,7 @@ export function useMobileKeyboard() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    let initialHeight = window.visualViewport?.height || window.innerHeight;
+    const initialHeight = window.visualViewport?.height || window.innerHeight;
 
     const handleResize = () => {
       const currentHeight = window.visualViewport?.height || window.innerHeight;

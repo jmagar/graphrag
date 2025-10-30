@@ -1,8 +1,9 @@
 """
 TEI (Text Embeddings Inference) service for generating embeddings.
 """
+
 import httpx
-from typing import List, Union
+from typing import List
 from app.core.config import settings
 
 
@@ -15,10 +16,10 @@ class EmbeddingsService:
     async def generate_embedding(self, text: str) -> List[float]:
         """
         Generate embedding for a single text.
-        
+
         Args:
             text: The text to embed
-            
+
         Returns:
             List of floats representing the embedding vector
         """
@@ -28,10 +29,10 @@ class EmbeddingsService:
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
         Generate embeddings for multiple texts.
-        
+
         Args:
             texts: List of texts to embed
-            
+
         Returns:
             List of embedding vectors
         """
