@@ -1,6 +1,17 @@
 # GraphRAG Monorepo
 
-A complete GraphRAG (Retrieval-Augmented Generation) system with web crawling, vector search, and LLM-powered responses.
+A complete GraphRAG (Retrieval-Augmented Generation) system with knowledge graph-powered retrieval, web crawling, vector search, and LLM-powered responses. Features a modern chat interface with Mandalorian theme.
+
+## 🎨 UI Preview
+
+The project includes a complete chat interface mockup (`notebooklm-final.html`) featuring:
+- 🪖 **Mandalorian (Pedro Pascal) AI assistant avatar**
+- 🟢 **Baby Yoda (Grogu) user avatar**
+- 🌙 **Clean dark mode** with consistent blue color scheme
+- 💬 **Floating input** with enhance prompt feature
+- 📱 **Three-panel responsive layout**: Spaces/Tags, Chat, Workflows
+- ⚡ **Interactive features**: @mentions, /commands, conversation tabs
+- ⌨️ **Keyboard shortcuts** for power users
 
 ## Architecture
 
@@ -9,9 +20,10 @@ graphrag/
 ├── apps/
 │   ├── web/               # Next.js web interface
 │   └── api/               # FastAPI REST API
-└── packages/
-    ├── shared-types/      # Shared TypeScript/Python types (future)
-    └── config/            # Shared configs (future)
+├── packages/
+│   ├── shared-types/      # Shared TypeScript/Python types (future)
+│   └── config/            # Shared configs (future)
+└── notebooklm-final.html  # UI mockup (ready for integration)
 ```
 
 ## Tech Stack
@@ -31,12 +43,23 @@ graphrag/
 
 ## Features
 
+### Core Features
 ✅ **Web Crawling**: Crawl entire websites with Firecrawl v2  
 ✅ **Auto-Embedding**: Crawled pages are automatically embedded  
 ✅ **Vector Search**: Semantic search with Qdrant  
 ✅ **RAG Queries**: Ask questions and get contextual answers  
 ✅ **Real-time Updates**: Webhooks for crawl progress  
-✅ **Monorepo Structure**: Clean separation of concerns  
+✅ **Monorepo Structure**: Clean separation of concerns
+
+### UI Features
+✅ **Modern Chat Interface**: NotebookLM-inspired design  
+✅ **Custom Avatars**: Mandalorian AI assistant & Baby Yoda user  
+✅ **Dark Mode First**: Optimized for comfortable extended use  
+✅ **Smart Input**: @mentions for sources, /commands for actions  
+✅ **Enhance Prompt**: AI-powered query refinement  
+✅ **Organized Workspace**: Spaces (Work, Play, Dev) and tags  
+✅ **Workflow Shortcuts**: Quick access to common tasks  
+✅ **Conversation Tabs**: Multiple chat threads with dropdown navigation  
 
 ## Quick Start
 
@@ -102,6 +125,17 @@ npm run dev:backend
 ### 4. Open the App
 
 Visit http://localhost:3000 and start crawling!
+
+### 5. Preview the UI Mockup
+
+Open `notebooklm-final.html` in your browser to see the complete chat interface design. This is a static HTML mockup ready to be integrated with the Next.js frontend.
+
+```bash
+# Open in your default browser
+open notebooklm-final.html
+# OR
+xdg-open notebooklm-final.html
+```
 
 ## Usage
 
@@ -258,6 +292,26 @@ TEI service should use a compatible embedding model. Current setup assumes 768-d
 - Ensure backend is accessible from Firecrawl service
 - If Firecrawl is on different machine, use public IP/hostname
 
+## Roadmap
+
+- [ ] Integrate `notebooklm-final.html` UI into Next.js app
+- [ ] Connect chat interface to backend API
+- [ ] Implement real-time RAG queries in UI
+- [ ] Add @mention autocomplete for sources
+- [ ] Implement /command system
+- [ ] Add conversation persistence
+- [ ] Build workflow automation system
+- [ ] Add knowledge graph visualization
+- [ ] Implement multi-user support
+
+## Screenshots
+
+### Chat Interface
+![Chat Interface](docs/screenshots/chat-interface.png) _(Coming soon)_
+
+### Dark Mode
+![Dark Mode](docs/screenshots/dark-mode.png) _(Coming soon)_
+
 ## License
 
 MIT
@@ -265,3 +319,7 @@ MIT
 ## Contributing
 
 Contributions welcome! Please read contributing guidelines first.
+
+---
+
+**This is the way.** 🛡️✨
