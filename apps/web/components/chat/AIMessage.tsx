@@ -23,14 +23,16 @@ export function AIMessage({ content, citations, timestamp = "2:34 PM", artifact 
   };
 
   return (
-    <div className="message-animate flex gap-4 group">
-      <Avatar type="ai" />
-      <div className="flex-1 space-y-3 pt-0.5">
-        <div className="text-sm leading-relaxed text-zinc-800 dark:text-zinc-100 space-y-3">
+    <div className="message-animate flex gap-2 md:gap-4 group">
+      <div className="flex-shrink-0">
+        <Avatar type="ai" />
+      </div>
+      <div className="flex-1 min-w-0 space-y-2 md:space-y-3 pt-0.5">
+        <div className="text-sm md:text-base leading-relaxed text-zinc-800 dark:text-zinc-100 space-y-2 md:space-y-3">
           {content.map((paragraph, index) => (
             <p
               key={index}
-              className="animate-fade-in"
+              className="animate-fade-in break-words"
               style={{ animationDelay: `${index * 0.1}s` }}
               dangerouslySetInnerHTML={{ __html: paragraph }}
             />
@@ -49,7 +51,7 @@ export function AIMessage({ content, citations, timestamp = "2:34 PM", artifact 
         )}
         
         {citations && citations.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
             {citations.map((citation) => (
               <Citation
                 key={citation.number}

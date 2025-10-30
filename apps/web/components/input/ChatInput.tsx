@@ -129,8 +129,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
   return (
     <div className="relative pointer-events-none">
-      <div className="absolute bottom-0 left-0 right-0 pb-6 pointer-events-auto">
-        <div className="max-w-3xl mx-auto px-6">
+      <div className="absolute bottom-0 left-0 right-0 pb-4 md:pb-6 pointer-events-auto">
+        <div className="max-w-3xl mx-auto px-3 md:px-6">
           <div className="relative">
             {/* Dropdowns */}
             {showMentions && <MentionDropdown onSelect={handleMentionSelect} />}
@@ -143,13 +143,14 @@ export function ChatInput({ onSend }: ChatInputProps) {
             )}
             
             {/* Input Field */}
-            <div className="relative flex items-end gap-2 p-2.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 focus-within:border-blue-500 dark:focus-within:border-blue-500 focus-within:shadow-lg focus-within:shadow-blue-500/10 dark:focus-within:shadow-blue-500/20 rounded-xl transition-all shadow-md dark:shadow-lg">
-              <div className="flex items-center pb-0.5">
+            <div className="relative flex items-end gap-1.5 md:gap-2 p-2 md:p-2.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 focus-within:border-blue-500 dark:focus-within:border-blue-500 focus-within:shadow-lg focus-within:shadow-blue-500/10 dark:focus-within:shadow-blue-500/20 rounded-xl transition-all shadow-md dark:shadow-lg">
+              {/* Attach button - hidden on small mobile */}
+              <div className="hidden sm:flex items-center pb-0.5">
                 <button
-                  className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all hover:scale-105"
+                  className="p-2 md:p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all active:scale-95"
                   title="Attach file"
                 >
-                  <svg className="w-4 h-4 text-zinc-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 md:w-4 md:h-4 text-zinc-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
                   </svg>
                 </button>
@@ -158,19 +159,20 @@ export function ChatInput({ onSend }: ChatInputProps) {
               <textarea
                 ref={textareaRef}
                 rows={1}
-                placeholder="Ask me anything... (Enter to send, Shift+Enter for new line)"
+                placeholder="Ask me anything..."
                 value={value}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setTimeout(() => setIsFocused(false), 150)}
-                className="flex-1 bg-transparent px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none resize-none max-h-[200px]"
-                style={{ minHeight: '36px' }}
+                className="flex-1 bg-transparent px-2 py-2 md:py-1.5 text-base md:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none resize-none max-h-32 md:max-h-[200px]"
+                style={{ minHeight: '40px' }}
               />
               
               <div className="flex items-center gap-1 pb-0.5">
+                {/* Enhance button - hidden on mobile */}
                 <button
-                  className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all hover:scale-105 group"
+                  className="hidden md:block p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all active:scale-95 group"
                   title="Enhance prompt with AI"
                 >
                   <svg className="w-4 h-4 text-purple-500 dark:text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,17 +183,17 @@ export function ChatInput({ onSend }: ChatInputProps) {
                 <button
                   onClick={handleSend}
                   disabled={!value.trim()}
-                  className="p-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-800 dark:disabled:to-zinc-800 disabled:cursor-not-allowed rounded-lg transition-all shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/50 hover:scale-105 disabled:shadow-none disabled:scale-100"
+                  className="p-2.5 md:p-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-800 dark:disabled:to-zinc-800 disabled:cursor-not-allowed rounded-lg transition-all shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/50 active:scale-95 disabled:shadow-none"
                 >
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 md:w-4 md:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                   </svg>
                 </button>
               </div>
             </div>
             
-            {/* Input Footer */}
-            <div className="flex items-center justify-between mt-2 px-1">
+            {/* Input Footer - hidden on mobile to save space */}
+            <div className="hidden md:flex items-center justify-between mt-2 px-1">
               <InputFooter isFocused={isFocused} />
             </div>
           </div>
