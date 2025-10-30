@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4400';
 
 export async function DELETE(
   request: NextRequest,
@@ -23,10 +23,11 @@ export async function DELETE(
 
     const data = await response.json();
     return NextResponse.json(data);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to cancel crawl';
     console.error('Cancel crawl error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to cancel crawl' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

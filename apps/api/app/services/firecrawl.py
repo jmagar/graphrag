@@ -3,7 +3,7 @@ Firecrawl v2 API service.
 """
 
 import httpx
-from typing import Dict, Any
+from typing import Dict, Any, cast
 from app.core.config import settings
 
 
@@ -29,7 +29,7 @@ class FirecrawlService:
                 timeout=30.0,
             )
             response.raise_for_status()
-            return response.json()
+            return cast(Dict[str, Any], response.json())
 
     async def get_crawl_status(self, crawl_id: str) -> Dict[str, Any]:
         """
@@ -44,7 +44,7 @@ class FirecrawlService:
                 timeout=30.0,
             )
             response.raise_for_status()
-            return response.json()
+            return cast(Dict[str, Any], response.json())
 
     async def cancel_crawl(self, crawl_id: str) -> Dict[str, Any]:
         """
@@ -59,9 +59,9 @@ class FirecrawlService:
                 timeout=30.0,
             )
             response.raise_for_status()
-            return response.json()
+            return cast(Dict[str, Any], response.json())
 
-    async def scrape_url(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def scrape_url(self, url: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
         Scrape a single URL.
 
@@ -79,9 +79,9 @@ class FirecrawlService:
                 timeout=60.0,
             )
             response.raise_for_status()
-            return response.json()
+            return cast(Dict[str, Any], response.json())
 
-    async def map_url(self, url: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def map_url(self, url: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
         Map a website to get all URLs.
 
@@ -99,9 +99,9 @@ class FirecrawlService:
                 timeout=60.0,
             )
             response.raise_for_status()
-            return response.json()
+            return cast(Dict[str, Any], response.json())
 
-    async def search_web(self, query: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def search_web(self, query: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
         Search the web and get full page content.
 
@@ -119,10 +119,10 @@ class FirecrawlService:
                 timeout=60.0,
             )
             response.raise_for_status()
-            return response.json()
+            return cast(Dict[str, Any], response.json())
 
     async def extract_data(
-        self, url: str, schema: Dict[str, Any], options: Dict[str, Any] = None
+        self, url: str, schema: Dict[str, Any], options: Dict[str, Any] | None = None
     ) -> Dict[str, Any]:
         """
         Extract structured data from a webpage.
@@ -141,4 +141,4 @@ class FirecrawlService:
                 timeout=90.0,
             )
             response.raise_for_status()
-            return response.json()
+            return cast(Dict[str, Any], response.json())

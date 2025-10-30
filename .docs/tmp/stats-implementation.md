@@ -46,7 +46,7 @@ storage = (vectors_count × 768 × 4) + (points_count × 2048)
 
 ### Phase 3: API Route Creation
 **Created**: [apps/web/app/api/stats/route.ts](../../apps/web/app/api/stats/route.ts)
-- Proxies requests to `http://localhost:8000/api/v1/query/collection/info`
+- Proxies requests to `http://localhost:4400/api/v1/query/collection/info`
 - Implements error handling for backend failures
 - Disables Next.js caching (`cache: "no-store"`) for fresh data
 
@@ -70,7 +70,7 @@ storage = (vectors_count × 768 × 4) + (points_count × 2048)
 User Interface (StatisticsSection)
     ↓ fetch("/api/stats")
 Next.js API Route (/api/stats/route.ts)
-    ↓ fetch("http://localhost:8000/api/v1/query/collection/info")
+    ↓ fetch("http://localhost:4400/api/v1/query/collection/info")
 FastAPI Endpoint (query.py:101)
     ↓ await vector_db_service.get_collection_info()
 Qdrant Service (vector_db.py:117)

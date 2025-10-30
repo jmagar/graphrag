@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4400';
 
 export async function GET(request: NextRequest) {
   try {

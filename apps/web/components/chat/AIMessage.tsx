@@ -5,14 +5,16 @@ import { MessageActions } from './MessageActions';
 import { Artifact } from './Artifact';
 import { ToolCall } from './ToolCall';
 import { CrawlProgress } from '../crawl/CrawlProgress';
-import { CodeBlock } from './CodeBlock';
 import { MermaidDiagram } from './MermaidDiagram';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 import type { ContentSegment } from '@/app/page';
+
+// Import prompt-kit components
+import {
+  Message,
+  MessageContent,
+} from '@/components/ui/message';
+import { Markdown } from '@/components/ui/markdown';
+import { CodeBlockCode, CodeBlock } from '@/components/ui/code-block';
 
 // Helper to check if content is ContentSegment array
 function isContentSegmentArray(content: string | string[] | ContentSegment[]): content is ContentSegment[] {
@@ -67,7 +69,7 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
 
     try {
       await navigator.clipboard.writeText(textToCopy);
-    } catch (error) {
+    } catch {
       throw new Error('Failed to copy message');
     }
   };
@@ -80,16 +82,28 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
     : content === '';
   const showTypingIndicator = isStreaming && hasNoContent && (!toolCalls || toolCalls.length === 0);
 
+  // Get text content for rendering
+  const getTextContent = () => {
+    if (isContentSegmentArray(content)) {
+      return content
+        .filter(seg => seg.type === 'text')
+        .map(seg => seg.type === 'text' ? seg.text : '')
+        .join('\n\n');
+    }
+    return Array.isArray(content) ? content.join('\n\n') : content;
+  };
+
   return (
     <article
       role="article"
       aria-label={`AI assistant response${timestamp ? ` at ${timestamp}` : ''}`}
-      className="message-animate flex gap-3 md:gap-5 group px-4 md:px-6 py-4 md:py-5 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 rounded-2xl transition-colors duration-200"
     >
-      <div className="flex-shrink-0" aria-hidden="true">
-        <Avatar type="ai" />
-      </div>
-      <div className="flex-1 min-w-0 space-y-3 md:space-y-4 pt-1">
+      <Message className="message-animate group px-4 md:px-6 py-4 md:py-5 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 rounded-2xl transition-colors duration-200">
+        <div className="flex-shrink-0" aria-hidden="true">
+          <Avatar type="ai" />
+        </div>
+        
+        <div className="flex-1 min-w-0 space-y-3 md:space-y-4 pt-1">
         {/* Show typing indicator when streaming with no content */}
         {showTypingIndicator ? (
           <div
@@ -128,165 +142,104 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
                     />
                   </div>
                 ) : (
-                  // Render text segment
-                  <div
-                    className="animate-stream-in break-words prose prose-base max-w-none text-[15px] md:text-base"
+                  // Render text segment with prompt-kit Markdown
+                  <MessageContent
+                    markdown
+                    className="animate-stream-in break-words prose prose-base max-w-none text-[15px] md:text-base bg-transparent p-0"
                     style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        // Remove all images
-                        img: () => null,
+                    components={{
+                      // Remove all images
+                      img: () => null,
 
-                        // Code blocks - use new CodeBlock or Mermaid
-                        code({ node, className, children, ...props }: any) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          const inline = !match;
-                          const language = match ? match[1] : 'text';
-                          const value = String(children).replace(/\n$/, '');
+                      // Code blocks - use prompt-kit CodeBlock
+                      code({ className, children, ...props }: any) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        const inline = !match;
+                        const language = match ? match[1] : 'text';
+                        const value = String(children).replace(/\n$/, '');
 
-                          // Mermaid diagrams
-                          if (language === 'mermaid') {
-                            return <MermaidDiagram chart={value} />;
-                          }
+                        // Mermaid diagrams (keep custom)
+                        if (language === 'mermaid') {
+                          return <MermaidDiagram chart={value} />;
+                        }
 
-                          // Regular code blocks
+                        // Inline code
+                        if (inline) {
                           return (
-                            <CodeBlock
-                              language={language}
-                              value={value}
-                              inline={inline}
-                            />
+                            <code className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-50 px-2 py-0.5 rounded-md text-[13px] font-mono border border-zinc-200 dark:border-zinc-700/50">
+                              {children}
+                            </code>
                           );
-                        },
+                        }
 
-                        // Headings with better spacing
-                        h1: ({ children }) => <h1 className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-zinc-50 mt-8 mb-5 tracking-tight">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 mt-6 mb-4 tracking-tight">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 mt-5 mb-3">{children}</h3>,
-
-                        // Paragraph with better line height and contrast
-                        p: ({ children }) => <p className="text-zinc-900/90 dark:text-zinc-100/90 leading-[1.7] mb-3">{children}</p>,
-
-                        // Lists with better spacing
-                        ul: ({ children }) => <ul className="list-disc list-outside ml-5 text-zinc-800 dark:text-zinc-200 mb-3 space-y-2">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal list-outside ml-5 text-zinc-800 dark:text-zinc-200 mb-3 space-y-2">{children}</ol>,
-                        li: ({ children }) => <li className="text-zinc-800 dark:text-zinc-200 pl-2">{children}</li>,
-
-                        // Links with better underline
-                        a: ({ href, children }) => (
-                          <a
-                            href={href}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline decoration-blue-600/40 dark:decoration-blue-400/40 hover:decoration-blue-600 dark:hover:decoration-blue-400 underline-offset-2 transition-all duration-150"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {children}
-                          </a>
-                        ),
-
-                        // Strong with proper contrast
-                        strong: ({ children }) => <strong className="font-semibold text-zinc-900 dark:text-white">{children}</strong>,
-                      }}
-                    >
-                      {segment.text}
-                    </ReactMarkdown>
-                  </div>
+                        // Block code with prompt-kit
+                        return (
+                          <CodeBlock className="my-4">
+                            <CodeBlockCode code={value} language={language} theme="github-dark" />
+                          </CodeBlock>
+                        );
+                      },
+                    }}
+                  >
+                    {segment.text}
+                  </MessageContent>
                 )}
               </div>
             ))}
           </div>
         ) : (
-          // Legacy rendering for string[] (backward compatibility)
-          <div
-            role="log"
-            aria-live="polite"
-            aria-atomic="false"
-            aria-relevant="additions text"
-            className="prose prose-base max-w-none text-[15px] md:text-base space-y-3 md:space-y-4"
+          // Legacy rendering for string[] with prompt-kit components
+          <MessageContent
+            markdown
+            className="prose prose-base max-w-none text-[15px] md:text-base bg-transparent p-0"
+            components={{
+              // Remove all images
+              img: () => null,
+
+              // Code blocks - use prompt-kit CodeBlock
+              code({ className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || '');
+                const inline = !match;
+                const language = match ? match[1] : 'text';
+                const value = String(children).replace(/\n$/, '');
+
+                // Mermaid diagrams (keep custom)
+                if (language === 'mermaid') {
+                  return <MermaidDiagram chart={value} />;
+                }
+
+                // Inline code
+                if (inline) {
+                  return (
+                    <code className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-50 px-2 py-0.5 rounded-md text-[13px] font-mono border border-zinc-200 dark:border-zinc-700/50">
+                      {children}
+                    </code>
+                  );
+                }
+
+                // Block code with prompt-kit
+                return (
+                  <CodeBlock className="my-4">
+                    <CodeBlockCode code={value} language={language} theme="github-dark" />
+                  </CodeBlock>
+                );
+              },
+            }}
           >
-            {/* Render tool calls at top for backward compatibility */}
-            {toolCalls && toolCalls.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {toolCalls.map((toolCall, index) => (
-                  <ToolCall
-                    key={index}
-                    command={toolCall.command}
-                    args={toolCall.args}
-                    status={toolCall.status || 'complete'}
-                  />
-                ))}
-              </div>
-            )}
-            {(Array.isArray(content) ? content : [content]).map((paragraph, index) => (
-              <div
+            {getTextContent()}
+          </MessageContent>
+        )}
+
+        {/* Render tool calls at top for backward compatibility */}
+        {toolCalls && toolCalls.length > 0 && !isContentSegmentArray(content) && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {toolCalls.map((toolCall, index) => (
+              <ToolCall
                 key={index}
-                className="animate-stream-in break-words"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                  components={{
-                    // Remove all images
-                    img: () => null,
-
-                    // Code blocks - use new CodeBlock or Mermaid
-                    code({ node, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      const inline = !match;
-                      const language = match ? match[1] : 'text';
-                      const value = String(children).replace(/\n$/, '');
-
-                      // Mermaid diagrams
-                      if (language === 'mermaid') {
-                        return <MermaidDiagram chart={value} />;
-                      }
-
-                      // Regular code blocks
-                      return (
-                        <CodeBlock
-                          language={language}
-                          value={value}
-                          inline={inline}
-                        />
-                      );
-                    },
-
-                    // Headings with better spacing
-                    h1: ({ children }) => <h1 className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-zinc-50 mt-8 mb-5 tracking-tight">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-50 mt-6 mb-4 tracking-tight">{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-lg md:text-xl font-semibold text-zinc-800 dark:text-zinc-100 mt-5 mb-3">{children}</h3>,
-
-                    // Paragraph with better line height and contrast
-                    p: ({ children }) => <p className="text-zinc-900/90 dark:text-zinc-100/90 leading-[1.7] mb-3">{children}</p>,
-
-                    // Lists with better spacing
-                    ul: ({ children }) => <ul className="list-disc list-outside ml-5 text-zinc-800 dark:text-zinc-200 mb-3 space-y-2">{children}</ul>,
-                    ol: ({ children }) => <ol className="list-decimal list-outside ml-5 text-zinc-800 dark:text-zinc-200 mb-3 space-y-2">{children}</ol>,
-                    li: ({ children }) => <li className="text-zinc-800 dark:text-zinc-200 pl-2">{children}</li>,
-
-                    // Links with better underline
-                    a: ({ href, children }) => (
-                      <a
-                        href={href}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline decoration-blue-600/40 dark:decoration-blue-400/40 hover:decoration-blue-600 dark:hover:decoration-blue-400 underline-offset-2 transition-all duration-150"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {children}
-                      </a>
-                    ),
-
-                    // Strong with proper contrast
-                    strong: ({ children }) => <strong className="font-semibold text-zinc-900 dark:text-white">{children}</strong>,
-                  }}
-                >
-                  {paragraph}
-                </ReactMarkdown>
-              </div>
+                command={toolCall.command}
+                args={toolCall.args}
+                status={toolCall.status || 'complete'}
+              />
             ))}
           </div>
         )}
@@ -336,7 +289,8 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
           onCopy={handleCopy}
           onRegenerate={() => {}}
         />
-      </div>
+        </div>
+      </Message>
     </article>
   );
 };

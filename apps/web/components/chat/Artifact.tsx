@@ -46,7 +46,7 @@ export function Artifact({ type, content, language = 'text', title, url }: Artif
                   img: () => null,
 
                   // Code blocks with syntax highlighting
-                  code({ node, className, children, ...props }: any) {
+                  code({ className, children, ...props }: any) {
                     const match = /language-(\w+)/.exec(className || '');
                     const inline = !match;
                     const language = match ? match[1] : 'text';

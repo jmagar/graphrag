@@ -43,4 +43,5 @@ class EmbeddingsService:
                 timeout=60.0,
             )
             response.raise_for_status()
-            return response.json()
+            result: List[List[float]] = response.json()
+            return result

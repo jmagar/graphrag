@@ -2,7 +2,7 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import axios from "axios";
 
-const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4400";
 
 /**
  * Custom MCP server providing Firecrawl and GraphRAG tools to Claude.
@@ -48,11 +48,13 @@ export const firecrawlServer = createSdkMcpServer({
               text: `Scraped content from ${args.url}:\n\n${truncated}`
             }]
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const axiosError = error as { response?: { data?: { detail?: string } } };
           return {
             content: [{
               type: "text",
-              text: `Failed to scrape ${args.url}: ${error.response?.data?.detail || error.message}`
+              text: `Failed to scrape ${args.url}: ${axiosError.response?.data?.detail || errorMessage}`
             }]
           };
         }
@@ -83,11 +85,13 @@ export const firecrawlServer = createSdkMcpServer({
               text: `Found ${urls.length} URLs on ${args.url}:\n\n${displayUrls.join('\n')}${urls.length > 50 ? `\n\n... and ${urls.length - 50} more URLs (total: ${urls.length})` : ""}`
             }]
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const axiosError = error as { response?: { data?: { detail?: string } } };
           return {
             content: [{
               type: "text",
-              text: `Failed to map ${args.url}: ${error.response?.data?.detail || error.message}`
+              text: `Failed to map ${args.url}: ${axiosError.response?.data?.detail || errorMessage}`
             }]
           };
         }
@@ -121,7 +125,12 @@ export const firecrawlServer = createSdkMcpServer({
             };
           }
           
-          const formatted = results.map((r: any, i: number) => {
+          interface SearchResult {
+            title: string;
+            url: string;
+            content: string;
+          }
+          const formatted = results.map((r: SearchResult, i: number) => {
             const preview = r.content.substring(0, 500);
             return `${i + 1}. **${r.title}**\n   URL: ${r.url}\n   ${preview}...`;
           }).join('\n\n');
@@ -132,11 +141,13 @@ export const firecrawlServer = createSdkMcpServer({
               text: `Search results for "${args.query}":\n\n${formatted}`
             }]
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const axiosError = error as { response?: { data?: { detail?: string } } };
           return {
             content: [{
               type: "text",
-              text: `Search failed: ${error.response?.data?.detail || error.message}`
+              text: `Search failed: ${axiosError.response?.data?.detail || errorMessage}`
             }]
           };
         }
@@ -168,11 +179,13 @@ export const firecrawlServer = createSdkMcpServer({
               text: `Extracted data from ${args.url}:\n\n\`\`\`json\n${jsonStr}\n\`\`\``
             }]
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const axiosError = error as { response?: { data?: { detail?: string } } };
           return {
             content: [{
               type: "text",
-              text: `Extraction failed: ${error.response?.data?.detail || error.message}`
+              text: `Extraction failed: ${axiosError.response?.data?.detail || errorMessage}`
             }]
           };
         }
@@ -212,11 +225,13 @@ export const firecrawlServer = createSdkMcpServer({
                 `Use check_crawl_status to monitor progress, or query_knowledge_base to search the indexed content once complete.`
             }]
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const axiosError = error as { response?: { data?: { detail?: string } } };
           return {
             content: [{
               type: "text",
-              text: `Failed to start crawl: ${error.response?.data?.detail || error.message}`
+              text: `Failed to start crawl: ${axiosError.response?.data?.detail || errorMessage}`
             }]
           };
         }
@@ -254,11 +269,13 @@ export const firecrawlServer = createSdkMcpServer({
                   : `⏳ Crawl in progress... Pages are being processed in the background.`)
             }]
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const axiosError = error as { response?: { data?: { detail?: string } } };
           return {
             content: [{
               type: "text",
-              text: `Failed to get crawl status: ${error.response?.data?.detail || error.message}`
+              text: `Failed to get crawl status: ${axiosError.response?.data?.detail || errorMessage}`
             }]
           };
         }
@@ -294,7 +311,12 @@ export const firecrawlServer = createSdkMcpServer({
             };
           }
           
-          const formatted = results.map((r: any, i: number) => {
+          interface QueryResult {
+            score: number;
+            content: string;
+            metadata?: { sourceURL?: string };
+          }
+          const formatted = results.map((r: QueryResult, i: number) => {
             return `${i + 1}. [Score: ${(r.score * 100).toFixed(0)}%] ${r.metadata?.sourceURL || 'Unknown source'}\n${r.content.substring(0, 500)}...`;
           }).join('\n\n---\n\n');
           
@@ -304,11 +326,13 @@ export const firecrawlServer = createSdkMcpServer({
               text: `Found ${results.length} relevant results in the knowledge base for "${args.query}":\n\n${formatted}`
             }]
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const axiosError = error as { response?: { data?: { detail?: string } } };
           return {
             content: [{
               type: "text",
-              text: `Knowledge base query failed: ${error.response?.data?.detail || error.message}`
+              text: `Knowledge base query failed: ${axiosError.response?.data?.detail || errorMessage}`
             }]
           };
         }

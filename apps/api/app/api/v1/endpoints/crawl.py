@@ -56,7 +56,7 @@ async def start_crawl(request: CrawlRequest, background_tasks: BackgroundTasks):
     """
     try:
         # Prepare crawl options
-        crawl_options = {
+        crawl_options: Dict[str, Any] = {
             "url": str(request.url),
             "webhook": f"{settings.WEBHOOK_BASE_URL}/api/v1/webhooks/firecrawl",
         }

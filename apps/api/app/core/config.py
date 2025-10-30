@@ -23,23 +23,23 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://10.1.0.6:3000",
-        "http://10.1.0.6:3001",
+        "http://localhost:4300",
+        "http://localhost:4301",
+        "http://10.1.0.6:4300",
+        "http://10.1.0.6:4301",
     ]
 
     # Firecrawl v2 API
-    FIRECRAWL_URL: str
-    FIRECRAWL_API_KEY: str
+    FIRECRAWL_URL: str = ""
+    FIRECRAWL_API_KEY: str = ""
 
     # Qdrant vector database
-    QDRANT_URL: str
+    QDRANT_URL: str = ""
     QDRANT_API_KEY: str = ""
     QDRANT_COLLECTION: str = "graphrag"
 
     # TEI embeddings service
-    TEI_URL: str
+    TEI_URL: str = ""
 
     # Reranker service (optional)
     RERANKER_URL: str = ""
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "qwen3:4b"
 
     # Webhook URL for Firecrawl callbacks
-    WEBHOOK_BASE_URL: str = "http://localhost:8000"
+    WEBHOOK_BASE_URL: str = "http://localhost:4400"
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./graphrag.db"

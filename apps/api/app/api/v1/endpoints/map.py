@@ -4,7 +4,7 @@ Map endpoint for getting all URLs from a website using Firecrawl v2 API.
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, HttpUrl
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from app.services.firecrawl import FirecrawlService
 
 router = APIRouter()
@@ -35,7 +35,7 @@ async def map_website(request: MapRequest):
     Returns a list of all URLs found on the website.
     """
     try:
-        options = {}
+        options: Dict[str, Any] = {}
         if request.search:
             options["search"] = request.search
         if request.limit:

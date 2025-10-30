@@ -20,7 +20,7 @@ graphrag/
 
 **Start both services:**
 ```bash
-npm run dev                    # Starts API (port 8000) and web (port 3000)
+npm run dev                    # Starts API (port 4400) and web (port 4300)
 ```
 
 **Individual services:**
@@ -40,14 +40,14 @@ mypy app/                     # Type checking
 **Frontend (Next.js):**
 ```bash
 cd apps/web
-npm run dev                   # Development server (port 3000)
+npm run dev                   # Development server (port 4300)
 npm run build                 # Production build
 npm run lint                  # ESLint
 ```
 
 **Root-level:**
 ```bash
-npm run kill-ports            # Kill processes on ports 3000 and 8000
+npm run kill-ports            # Kill processes on ports 4300 and 4400
 npm run build                 # Build all workspaces
 npm run lint                  # Lint all workspaces
 npm run clean                 # Remove all node_modules
@@ -224,7 +224,7 @@ QDRANT_API_KEY=
 TEI_URL=http://localhost:4207
 OLLAMA_URL=http://localhost:4214
 OLLAMA_MODEL=qwen3:4b
-WEBHOOK_BASE_URL=http://localhost:8000
+WEBHOOK_BASE_URL=http://localhost:4400
 ```
 
 Backend reads this file via `pydantic_settings.BaseSettings`.

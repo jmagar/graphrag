@@ -101,11 +101,12 @@ Be concise, helpful, and technical when appropriate.`,
           }
 
           controller.close();
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Chat error:", error);
+          const errorMessage = error instanceof Error ? error.message : "An error occurred";
           const errorData = JSON.stringify({
             type: "error",
-            error: error.message || "An error occurred",
+            error: errorMessage,
           });
           controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
           controller.close();
@@ -120,10 +121,11 @@ Be concise, helpful, and technical when appropriate.`,
         Connection: "keep-alive",
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Request error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }

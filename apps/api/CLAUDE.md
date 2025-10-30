@@ -119,7 +119,7 @@ QDRANT_API_KEY=
 TEI_URL=http://localhost:4207
 OLLAMA_URL=http://localhost:4214
 OLLAMA_MODEL=qwen3:4b
-WEBHOOK_BASE_URL=http://localhost:8000
+WEBHOOK_BASE_URL=http://localhost:4400
 ```
 
 **Pydantic Settings** (`app/core/config.py`):
@@ -231,7 +231,7 @@ venv/bin/python -m app.main
 npm run dev:api
 ```
 
-Server runs on `http://0.0.0.0:8000` with auto-reload enabled.
+Server runs on `http://0.0.0.0:4400` with auto-reload enabled.
 
 ### Testing Philosophy (TDD Required)
 
@@ -404,8 +404,8 @@ python-multipart==0.0.12   # File uploads (future)
 CORS origins include local network IP for LAN access:
 ```python
 CORS_ORIGINS = [
-    "http://localhost:3000",
-    "http://10.1.0.6:3000",  # Local network
+    "http://localhost:4300",
+    "http://10.1.0.6:4300",  # Local network
 ]
 ```
 
@@ -414,8 +414,8 @@ Update `app/core/config.py` if frontend IP changes.
 ### Webhook URL in Containers
 
 If running in Docker, `WEBHOOK_BASE_URL` must be accessible from Firecrawl container:
-- Use Docker network name (e.g., `http://api:8000`)
-- Or use host IP (e.g., `http://10.1.0.6:8000`)
+- Use Docker network name (e.g., `http://api:4400`)
+- Or use host IP (e.g., `http://10.1.0.6:4400`)
 
 ### Trailing Slashes
 

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 @layer base {
     :root {
         --background: 0 0% 100%;
@@ -253,3 +255,5 @@
         outline: 3px solid Highlight;
     }
 }
+
+/* Already handled in @theme and base layer above */

@@ -62,4 +62,6 @@ Answer based on the context above:"""
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("response", "No response generated")
+            # Explicitly cast to str to satisfy mypy
+            llm_response: str = result.get("response", "No response generated")
+            return llm_response

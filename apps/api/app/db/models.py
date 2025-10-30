@@ -8,12 +8,15 @@ Defines SQLAlchemy ORM models for:
 """
 
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSON
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship, DeclarativeBase
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """Base class for all SQLAlchemy models."""
+    pass
 
 
 class Conversation(Base):

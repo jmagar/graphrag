@@ -111,12 +111,19 @@ def build_conversation_response(
     """Build conversation response with computed fields."""
     tags = [tag.tag for tag in conversation.tags]
 
+    # Access instance attributes (not Column descriptors)
+    conv_id: UUID = conversation.id  # type: ignore[assignment]
+    conv_title: str = conversation.title  # type: ignore[assignment]
+    conv_space: str = conversation.space  # type: ignore[assignment]
+    conv_created: datetime = conversation.created_at  # type: ignore[assignment]
+    conv_updated: datetime = conversation.updated_at  # type: ignore[assignment]
+
     return ConversationResponse(
-        id=conversation.id,
-        title=conversation.title,
-        space=conversation.space,
-        created_at=conversation.created_at,
-        updated_at=conversation.updated_at,
+        id=conv_id,
+        title=conv_title,
+        space=conv_space,
+        created_at=conv_created,
+        updated_at=conv_updated,
         tags=tags,
         message_count=message_count,
         last_message_preview=last_message,
@@ -201,6 +208,7 @@ async def list_conversations(
             select(func.count()).select_from(Message).where(Message.conversation_id == conv.id)
         )
         msg_count = msg_count_result.scalar()
+        msg_count_int: int = msg_count or 0  # Handle None case
 
         # Get last message
         last_msg_result = await db.execute(
@@ -210,9 +218,9 @@ async def list_conversations(
             .limit(1)
         )
         last_msg = last_msg_result.scalar_one_or_none()
-        last_msg_content = last_msg.content if last_msg else None
+        last_msg_content: Optional[str] = last_msg.content if last_msg else None  # type: ignore[assignment]
 
-        responses.append(build_conversation_response(conv, msg_count, last_msg_content))
+        responses.append(build_conversation_response(conv, msg_count_int, last_msg_content))
 
     return responses
 
@@ -235,15 +243,23 @@ async def get_conversation(conversation_id: UUID, db: AsyncSession = Depends(get
     # Build response
     tags = [tag.tag for tag in conversation.tags]
 
+    # Access instance attributes (not Column descriptors)
+    conv_id: UUID = conversation.id  # type: ignore[assignment]
+    conv_title: str = conversation.title  # type: ignore[assignment]
+    conv_space: str = conversation.space  # type: ignore[assignment]
+    conv_created: datetime = conversation.created_at  # type: ignore[assignment]
+    conv_updated: datetime = conversation.updated_at  # type: ignore[assignment]
+    last_preview: Optional[str] = messages[-1].content if messages else None  # type: ignore[assignment]
+
     return ConversationDetail(
-        id=conversation.id,
-        title=conversation.title,
-        space=conversation.space,
-        created_at=conversation.created_at,
-        updated_at=conversation.updated_at,
+        id=conv_id,
+        title=conv_title,
+        space=conv_space,
+        created_at=conv_created,
+        updated_at=conv_updated,
         tags=tags,
         message_count=len(messages),
-        last_message_preview=messages[-1].content if messages else None,
+        last_message_preview=last_preview,
         messages=[MessageResponse.model_validate(m) for m in messages],
     )
 
@@ -259,7 +275,7 @@ async def update_conversation(
 
     # Update title if provided
     if data.title is not None:
-        conversation.title = data.title
+        conversation.title = data.title  # type: ignore[assignment]
 
     # Update tags if provided
     if data.tags is not None:
@@ -280,8 +296,9 @@ async def update_conversation(
         select(func.count()).select_from(Message).where(Message.conversation_id == conversation.id)
     )
     msg_count = msg_count_result.scalar()
+    msg_count_int: int = msg_count or 0  # Handle None case
 
-    return build_conversation_response(conversation, msg_count)
+    return build_conversation_response(conversation, msg_count_int)
 
 
 @router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -453,7 +453,7 @@ QDRANT_API_KEY=
 TEI_URL=http://localhost:4207
 OLLAMA_URL=http://localhost:4214
 OLLAMA_MODEL=qwen3:4b
-WEBHOOK_BASE_URL=http://localhost:8000
+WEBHOOK_BASE_URL=http://localhost:4400
 ```
 
 **Backend Config**:

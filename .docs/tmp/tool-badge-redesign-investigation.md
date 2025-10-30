@@ -73,7 +73,7 @@ cd /home/jmagar/code/graphrag/apps/web && npm run dev
 ```
 
 **Current State:**
-- Backend: `http://localhost:8000` ✅ (Health check passing)
+- Backend: `http://localhost:4400` ✅ (Health check passing)
 - Frontend: `http://localhost:3004` ✅ (Running on 3004 due to port conflicts)
 - Stats API: ✅ Working (2 documents indexed)
 

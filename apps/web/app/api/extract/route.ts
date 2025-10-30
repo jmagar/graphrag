@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 
-const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4400';
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,11 +25,18 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json(response.data);
-  } catch (error: any) {
-    console.error('Extract error:', error.response?.data || error.message);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      console.error('Extract error:', error.response?.data || error.message);
+      return NextResponse.json(
+        { error: error.response?.data?.detail || 'Failed to extract data' },
+        { status: error.response?.status || 500 }
+      );
+    }
+    console.error('Extract error:', error);
     return NextResponse.json(
-      { error: error.response?.data?.detail || 'Failed to extract data' },
-      { status: error.response?.status || 500 }
+      { error: 'Failed to extract data' },
+      { status: 500 }
     );
   }
 }

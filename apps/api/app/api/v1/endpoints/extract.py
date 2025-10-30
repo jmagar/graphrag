@@ -3,7 +3,7 @@ Extract endpoint for structured data extraction using Firecrawl v2 API.
 """
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, Field
 from typing import Optional, Dict, Any, List
 from app.services.firecrawl import FirecrawlService
 
@@ -15,7 +15,7 @@ class ExtractRequest(BaseModel):
     """Request model for extracting structured data."""
 
     url: HttpUrl
-    schema: Dict[str, Any]
+    extraction_schema: Dict[str, Any] = Field(..., alias="schema")
     formats: Optional[List[str]] = ["markdown"]
 
 
@@ -38,7 +38,7 @@ async def extract_data(request: ExtractRequest):
         if request.formats:
             options["formats"] = request.formats
 
-        result = await firecrawl_service.extract_data(str(request.url), request.schema, options)
+        result = await firecrawl_service.extract_data(str(request.url), request.extraction_schema, options)
 
         return {"success": True, "data": result.get("data", {})}
 

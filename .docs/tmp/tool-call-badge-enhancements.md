@@ -19,7 +19,7 @@ urls = [link["url"] if isinstance(link, dict) else link for link in links]
 
 **Testing**:
 ```bash
-curl 'http://localhost:8000/api/v1/map/' \
+curl 'http://localhost:4400/api/v1/map/' \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://docs.claude.com","limit":10}'
 
@@ -100,7 +100,7 @@ Replaced `dangerouslySetInnerHTML` with `ReactMarkdown`:
 
 ```bash
 # Map endpoint works
-curl 'http://localhost:8000/api/v1/map/' -d '{"url":"https://docs.claude.com","limit":10}'
+curl 'http://localhost:4400/api/v1/map/' -d '{"url":"https://docs.claude.com","limit":10}'
 
 # Frontend: Try /map command to see new badges
 /map https://docs.claude.com

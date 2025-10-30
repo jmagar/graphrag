@@ -27,7 +27,7 @@ export function ChatHeader({ onLeftMenuClick, onRightMenuClick, messages = [] }:
 
     try {
       exportMessagesToMarkdown(messages);
-    } catch (error) {
+    } catch {
       throw new Error('Failed to export conversation');
     }
   };

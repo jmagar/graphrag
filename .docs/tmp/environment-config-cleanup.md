@@ -82,8 +82,8 @@ RERANKER_URL=http://localhost:4208
 OLLAMA_URL=http://localhost:4214
 
 # Web config includes:
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:4400
+NEXT_PUBLIC_APP_URL=http://localhost:4300
 ```
 
 #### 4. Fixed Gitignore

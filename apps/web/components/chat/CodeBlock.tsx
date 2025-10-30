@@ -24,7 +24,7 @@ export function CodeBlock({ language, value, inline, filename }: CodeBlockProps)
             theme: 'dark-plus',
           });
           setHtml(result);
-        } catch (error) {
+        } catch {
           // Fallback for unknown languages
           const fallback = await codeToHtml(value, {
             lang: 'text',
@@ -45,7 +45,7 @@ export function CodeBlock({ language, value, inline, filename }: CodeBlockProps)
       await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
+    } catch {
       throw new Error('Failed to copy code');
     }
   };

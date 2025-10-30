@@ -256,7 +256,7 @@ def mock_settings(monkeypatch):
     monkeypatch.setenv("QDRANT_URL", "http://mock-qdrant:6333")
     monkeypatch.setenv("TEI_URL", "http://mock-tei:8080")
     monkeypatch.setenv("OLLAMA_URL", "http://mock-ollama:11434")
-    monkeypatch.setenv("WEBHOOK_BASE_URL", "http://test:8000")
+    monkeypatch.setenv("WEBHOOK_BASE_URL", "http://test:4400")
 
 
 # ============================================================================

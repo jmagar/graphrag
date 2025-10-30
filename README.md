@@ -105,7 +105,7 @@ cat .env
 **Option 1: Start Both (Recommended)**
 ```bash
 npm run dev
-# Starts both backend (port 8000) and frontend (port 3000) concurrently
+# Starts both backend (port 4400) and frontend (port 4300) concurrently
 ```
 
 **Option 2: Start Individually**
@@ -124,7 +124,7 @@ npm run dev:backend
 
 ### 4. Open the App
 
-Visit http://localhost:3000 and start crawling!
+Visit http://localhost:4300 and start crawling!
 
 ### 5. Preview the UI Mockup
 
@@ -160,7 +160,7 @@ xdg-open notebooklm-final.html
 Use the backend API to query:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/query \
+curl -X POST http://localhost:4400/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is this website about?",
@@ -171,7 +171,7 @@ curl -X POST http://localhost:8000/api/v1/query \
 
 ## API Documentation
 
-Backend API docs: http://localhost:8000/docs
+Backend API docs: http://localhost:4400/docs
 
 ### Key Endpoints
 
@@ -278,8 +278,8 @@ TEI service should use a compatible embedding model. Current setup assumes 768-d
 - Verify .env file exists in `apps/backend/`
 
 ### Web app can't connect to backend
-- Check backend is running on port 8000
-- Verify `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local`
+- Check backend is running on port 4400
+- Verify `NEXT_PUBLIC_API_URL=http://localhost:4400` in `apps/web/.env.local`
 - Check CORS settings in backend
 
 ### Crawl fails

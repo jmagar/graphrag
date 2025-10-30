@@ -7,7 +7,7 @@ Combines:
 - Conversation and message persistence
 """
 
-from typing import List, Optional
+from typing import List, Optional, cast
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -105,7 +105,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_session)):
     6. Return response
     """
     # Step 1: Get or create conversation
-    conversation_id = request.conversation_id
+    conversation_id: Optional[UUID] = request.conversation_id
 
     if conversation_id:
         # Verify conversation exists
@@ -123,7 +123,9 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_session)):
         conversation = Conversation(title=title, space="default")
         db.add(conversation)
         await db.flush()  # Get ID
-        conversation_id = conversation.id
+        # Cast to UUID since after flush, the id is populated and is a UUID instance
+        # mypy sees conversation.id as Column[UUID], but at runtime it's an actual UUID
+        conversation_id = cast(UUID, conversation.id)
 
     # Step 2: Save user message
     user_message = Message(
@@ -172,12 +174,14 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_session)):
     await db.refresh(assistant_message)
 
     # Step 6: Return response
-    message_response = MessageResponse(
-        id=assistant_message.id,
-        conversation_id=conversation_id,
-        role=assistant_message.role,
-        content=assistant_message.content,
-        sources=assistant_message.sources,
-    )
+    # Use model_validate to properly convert ORM model to Pydantic model
+    message_response = MessageResponse.model_validate(assistant_message)
+
+    # Ensure conversation_id is not None for the response
+    if conversation_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Conversation ID should not be None at this point",
+        )
 
     return ChatResponse(conversation_id=conversation_id, message=message_response, sources=sources)

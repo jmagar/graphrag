@@ -1,5 +1,8 @@
 "use client";
 
+// Force dynamic rendering to avoid pre-rendering issues with React context
+export const dynamic = 'force-dynamic';
+
 import { useState, useRef, useEffect } from 'react';
 import { LeftSidebar } from '@/components/layout/LeftSidebar';
 import { RightSidebar } from '@/components/layout/RightSidebar';
@@ -68,8 +71,7 @@ export default function GraphRAGPage() {
   const { 
     currentConversation, 
     loadConversation, 
-    createConversation,
-    isLoading: storeLoading 
+    createConversation
   } = useConversationStore();
 
   // Real-time crawl progress polling with proper cleanup
@@ -99,8 +101,8 @@ export default function GraphRAGPage() {
 
           // Extract recent pages
           const recentPages = statusData.data && statusData.data.length > 0
-            ? statusData.data.slice(-5).map((p: any) => ({
-                url: p.metadata?.sourceURL || 'Unknown',
+            ? statusData.data.slice(-5).map((p: Record<string, unknown>) => ({
+                url: (p.metadata as Record<string, unknown>)?.sourceURL || 'Unknown',
                 status: 'completed'
               }))
             : [];
@@ -152,7 +154,7 @@ export default function GraphRAGPage() {
       intervals.forEach(interval => clearInterval(interval));
       intervals.clear();
     };
-  }, [messages.filter(m => m.crawl?.status === 'active').map(m => m.crawl?.jobId).join(',')]);
+  }, [messages]);
 
   // Cleanup: abort any in-flight requests on unmount
   useEffect(() => {
@@ -281,10 +283,10 @@ export default function GraphRAGPage() {
           });
           if (!response.ok) throw new Error('Search failed');
           const data = await response.json();
-          const fullResults = data.results.map((r: any, i: number) => 
+          const fullResults = data.results.map((r: Record<string, string>, i: number) => 
             `### ${i + 1}. ${r.title}\n**URL**: ${r.url}\n\n${r.content}\n`
           ).join('\n---\n\n');
-          result = data.results.map((r: any, i: number) => 
+          result = data.results.map((r: Record<string, string>, i: number) => 
             `### ${i + 1}. ${r.title}\n**URL**: ${r.url}\n\n${r.content.substring(0, 300)}...\n`
           ).join('\n---\n\n');
           artifactTitle = 'Search Results';
@@ -444,8 +446,8 @@ export default function GraphRAGPage() {
           
           // Extract recent pages for initial render
           const recentPages = statusData?.data && statusData.data.length > 0
-            ? statusData.data.slice(-5).map((p: any) => ({
-                url: p.metadata?.sourceURL || 'Unknown',
+            ? statusData.data.slice(-5).map((p: Record<string, unknown>) => ({
+                url: (p.metadata as Record<string, unknown>)?.sourceURL || 'Unknown',
                 status: 'completed'
               }))
             : [];
@@ -478,11 +480,12 @@ export default function GraphRAGPage() {
           throw new Error(`Unknown command: /${command}\n\nAvailable: /scrape, /crawl, /map, /search, /extract`);
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `❌ ${error.message}`,
+        content: `❌ ${errorMsg}`,
         timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -520,7 +523,7 @@ export default function GraphRAGPage() {
   };
 
   // Helper: Save message to backend (async, non-blocking)
-  const saveToBackend = async (userMessage: string, assistantResponse: string) => {
+  const saveToBackend = async (userMessage: string, assistantMessage: string) => {
     try {
       let conversationId = currentConversation?.id;
       
@@ -532,19 +535,38 @@ export default function GraphRAGPage() {
         conversationId = newConv.id;
       }
       
-      // Use the chat-rag endpoint to save both messages
-      const response = await fetch('/api/chat-rag', {
+      // Save user message
+      const userResponse = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: userMessage,
-          use_rag: false, // We already got the response from Claude SDK
-          conversation_id: conversationId
+          role: 'user',
+          content: userMessage,
+          extra_data: {}
         })
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to save message');
+      if (!userResponse.ok) {
+        const errorText = await userResponse.text();
+        console.error('Failed to save user message:', userResponse.status, errorText);
+        throw new Error(`Failed to save user message: ${userResponse.status}`);
+      }
+      
+      // Save assistant message
+      const assistantResponse = await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'assistant',
+          content: assistantMessage,
+          extra_data: {}
+        })
+      });
+      
+      if (!assistantResponse.ok) {
+        const errorText = await assistantResponse.text();
+        console.error('Failed to save assistant message:', assistantResponse.status, errorText);
+        throw new Error(`Failed to save assistant message: ${assistantResponse.status}`);
       }
       
       // Reload conversation to get updated messages
@@ -642,13 +664,14 @@ export default function GraphRAGPage() {
         setMessages(prev => [...prev, scrapeMessage]);
         setIsLoading(false);
         return;
-      } catch (scrapeError: any) {
+      } catch (scrapeError: unknown) {
         console.error('Scrape error:', scrapeError);
         // Show error message
+        const scrapeErrorMsg = scrapeError instanceof Error ? scrapeError.message : 'Unknown error';
         const errorMessage: Message = {
           id: (Date.now() + 0.5).toString(),
           role: 'assistant',
-          content: [`❌ Failed to scrape URL: ${scrapeError.message}`],
+          content: [`❌ Failed to scrape URL: ${scrapeErrorMsg}`],
           timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -693,6 +716,7 @@ export default function GraphRAGPage() {
       const contentSegments: ContentSegment[] = []; // Build inline content
       let currentTextSegment = ''; // Accumulate current text
       const toolsInUse = new Map<string, { name: string; input: string; index: number }>(); // Track tool calls by ID
+      let buffer = ''; // Buffer for incomplete lines
 
       if (!reader) {
         throw new Error('No response body');
@@ -703,7 +727,11 @@ export default function GraphRAGPage() {
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += chunk; // Add to buffer
+        const lines = buffer.split('\n');
+        
+        // Keep the last incomplete line in buffer
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (!line.trim() || !line.startsWith('data: ')) continue;
@@ -721,6 +749,9 @@ export default function GraphRAGPage() {
           }
 
           try {
+            // Skip empty or malformed data
+            if (!data || data.trim() === '') continue;
+            
             const parsed = JSON.parse(data);
 
             // Capture session ID for conversation continuity
@@ -869,20 +900,25 @@ export default function GraphRAGPage() {
               throw new Error(parsed.error || 'Unknown error');
             }
           } catch (parseError) {
-            console.error('Error parsing SSE data:', parseError);
+            // Silently skip incomplete JSON chunks - they'll be completed in next iteration
+            // Only log if it's not a JSON parsing error
+            if (parseError instanceof Error && !parseError.message.includes('JSON')) {
+              console.error('Error parsing SSE data:', parseError);
+            }
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Chat error:', error);
       setIsLoading(false);
 
       // Update assistant message with error
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get response';
       setMessages(prev =>
         prev.map(m => m.id === assistantId
           ? {
               ...m,
-              content: [{ type: 'text' as const, text: `Error: ${error.message || 'Failed to get response'}` }],
+              content: [{ type: 'text' as const, text: `Error: ${errorMessage}` }],
               isStreaming: false
             }
           : m

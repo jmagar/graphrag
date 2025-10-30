@@ -160,13 +160,13 @@ interface Message {
 
 **Backend Health Check:**
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:4400/health
 # Returns: { "status": "healthy", ... }
 ```
 
 **Qdrant Collection Info:**
 ```bash
-curl http://localhost:8000/api/v1/query/collection/info
+curl http://localhost:4400/api/v1/query/collection/info
 # Returns: { "name": "graphrag", "points_count": 0, ... }
 ```
 
@@ -261,4 +261,4 @@ apps/web/
 
 - Claude Agent SDK Custom Tools: https://docs.claude.com/en/api/agent-sdk/custom-tools
 - Claude Agent SDK Session Management: https://docs.claude.com/en/api/agent-sdk/session-management
-- Backend API: http://localhost:8000/docs (FastAPI Swagger)
+- Backend API: http://localhost:4400/docs (FastAPI Swagger)

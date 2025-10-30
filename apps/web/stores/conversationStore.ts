@@ -21,7 +21,7 @@ export interface ConversationMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   created_at: string;
-  extra_data: Record<string, any>;
+  extra_data: Record<string, unknown>;
   sources: Array<{
     id: string;
     score: number;
@@ -129,7 +129,11 @@ export const useConversationStore = create<ConversationState>()(
             body: JSON.stringify({ title, space }),
           });
           
-          if (!response.ok) throw new Error('Failed to create conversation');
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error('Create conversation failed:', response.status, errorData);
+            throw new Error(`Failed to create conversation: ${response.status}`);
+          }
           
           const newConversation = await response.json();
           
@@ -141,8 +145,10 @@ export const useConversationStore = create<ConversationState>()(
           
           return newConversation;
         } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          console.error('createConversation error:', errorMsg);
           set({ 
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: errorMsg,
             isLoading: false 
           });
           throw error;

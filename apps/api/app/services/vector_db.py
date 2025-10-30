@@ -11,6 +11,7 @@ from qdrant_client.models import (
     Filter,
     FieldCondition,
     MatchValue,
+    Condition,
 )
 from app.core.config import settings
 
@@ -88,7 +89,7 @@ class VectorDBService:
         """
         query_filter = None
         if filters:
-            conditions = []
+            conditions: List[Condition] = []
             for key, value in filters.items():
                 conditions.append(
                     FieldCondition(key=f"metadata.{key}", match=MatchValue(value=value))

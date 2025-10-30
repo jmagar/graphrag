@@ -111,7 +111,7 @@ Direct browser → FastAPI requests cause CORS issues. Next.js API routes run se
 export async function POST(request: Request) {
   const body = await request.json();
   
-  const response = await fetch('http://localhost:8000/api/v1/crawl', {
+  const response = await fetch('http://localhost:4400/api/v1/crawl', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -373,7 +373,7 @@ npm run dev
 npm run dev:web
 ```
 
-Server runs on `http://localhost:3000`.
+Server runs on `http://localhost:4300`.
 
 ### Testing Philosophy (TDD Required)
 
@@ -487,7 +487,7 @@ npm run build
 
 ### CORS with Direct API Calls
 
-**Problem**: Browser blocks `localhost:3000` → `localhost:8000` requests.  
+**Problem**: Browser blocks `localhost:4300` → `localhost:4400` requests.  
 **Solution**: Always use Next.js API routes as proxy.
 
 ### State Persistence

@@ -203,14 +203,14 @@ All features built using RED-GREEN-REFACTOR:
 
 **Create Conversation**:
 ```bash
-curl -X POST http://localhost:8000/api/v1/conversations/ \
+curl -X POST http://localhost:4400/api/v1/conversations/ \
   -H "Content-Type: application/json" \
   -d '{"title": "My Chat", "space": "work"}'
 ```
 
 **Chat with RAG**:
 ```bash
-curl -X POST http://localhost:8000/api/v1/chat/ \
+curl -X POST http://localhost:4400/api/v1/chat/ \
   -H "Content-Type: application/json" \
   -d '{
     "message": "What is GraphRAG?",
