@@ -57,27 +57,31 @@ export default function GraphRAGPage() {
   const messageTimestampsRef = useRef<number[]>([]);
   const isDesktop = useIsDesktop();
 
-  // Real-time crawl progress polling
+  // Real-time crawl progress polling with proper cleanup
   useEffect(() => {
     const activeCrawls = messages.filter(m => m.crawl?.status === 'active');
     if (activeCrawls.length === 0) return;
 
-    const intervals: NodeJS.Timeout[] = [];
+    const intervals = new Map<string, NodeJS.Timeout>();
+    let isMounted = true;
 
     activeCrawls.forEach((message) => {
       if (!message.crawl) return;
-      
+
       const { jobId } = message.crawl;
-      
+
+      // Skip if already polling this job
+      if (intervals.has(jobId)) return;
+
       const pollStatus = async () => {
         try {
           const response = await fetch(`/api/crawl/status/${jobId}`);
           if (!response.ok) return;
-          
+
           const statusData = await response.json();
           const status = statusData.status;
           const isComplete = status === 'completed' || status === 'failed';
-          
+
           // Extract recent pages
           const recentPages = statusData.data && statusData.data.length > 0
             ? statusData.data.slice(-5).map((p: any) => ({
@@ -86,42 +90,54 @@ export default function GraphRAGPage() {
               }))
             : [];
 
-          // Update message with structured data
-          setMessages(prev => prev.map(m => 
-            m.id === message.id
-              ? {
-                  ...m,
-                  crawl: {
-                    ...m.crawl!,
-                    status: isComplete ? (status === 'completed' ? 'completed' : 'failed') : 'active',
-                    data: {
-                      completed: statusData.completed || 0,
-                      total: statusData.total || 0,
-                      creditsUsed: statusData.creditsUsed || 0,
-                      expiresAt: statusData.expiresAt,
-                      recentPages
+          // Only update if component is still mounted
+          if (isMounted) {
+            setMessages(prev => prev.map(m =>
+              m.id === message.id
+                ? {
+                    ...m,
+                    crawl: {
+                      ...m.crawl!,
+                      status: isComplete ? (status === 'completed' ? 'completed' : 'failed') : 'active',
+                      data: {
+                        completed: statusData.completed || 0,
+                        total: statusData.total || 0,
+                        creditsUsed: statusData.creditsUsed || 0,
+                        expiresAt: statusData.expiresAt,
+                        recentPages
+                      }
                     }
                   }
-                }
-              : m
-          ));
-          
+                : m
+            ));
+          }
+
+          // Stop polling if complete
+          if (isComplete && intervals.has(jobId)) {
+            clearInterval(intervals.get(jobId)!);
+            intervals.delete(jobId);
+          }
+
         } catch (error) {
-          console.error('Failed to poll crawl status:', error);
+          if (isMounted) {
+            console.error('Failed to poll crawl status:', error);
+          }
         }
       };
 
       // Poll immediately, then every 3 seconds
       pollStatus();
       const interval = setInterval(pollStatus, 3000);
-      intervals.push(interval);
+      intervals.set(jobId, interval);
     });
 
-    // Cleanup
+    // Cleanup function
     return () => {
+      isMounted = false;
       intervals.forEach(interval => clearInterval(interval));
+      intervals.clear();
     };
-  }, [messages]);
+  }, [messages.filter(m => m.crawl?.status === 'active').map(m => m.crawl?.jobId).join(',')]);
 
   const handleCommand = async (command: string, args: string) => {
     const userMessage: Message = {
@@ -197,7 +213,10 @@ export default function GraphRAGPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: args.trim(), limit: 100 })
           });
-          if (!response.ok) throw new Error('Map failed');
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(`Map failed: ${errorData.error || response.statusText}`);
+          }
           const data = await response.json();
           result = `Found ${data.total} URLs:\n\n${data.urls.join('\n')}`;
           artifactType = 'text';
@@ -751,9 +770,10 @@ export default function GraphRAGPage() {
       
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-zinc-50 dark:bg-zinc-900">
-        <ChatHeader 
+        <ChatHeader
           onLeftMenuClick={() => setLeftDrawerOpen(true)}
           onRightMenuClick={() => setRightDrawerOpen(true)}
+          messages={messages}
         />
         
         {/* Messages */}

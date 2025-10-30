@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await axios.post(
-      `${backendUrl}/api/v1/map`,
+      `${backendUrl}/api/v1/map/`,
       {
         url: body.url,
         search: body.search,

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
     // Call backend scrape endpoint
     const response = await axios.post(
-      `${backendUrl}/api/v1/scrape`,
+      `${backendUrl}/api/v1/scrape/`,
       {
         url: body.url,
         formats: body.formats || ['markdown', 'html']

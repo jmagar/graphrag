@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Avatar } from './Avatar';
 import { ToolCall } from './ToolCall';
 
@@ -7,7 +8,7 @@ interface UserMessageProps {
   onEdit?: () => void;
 }
 
-export function UserMessage({ content, timestamp = "2:35 PM", onEdit }: UserMessageProps) {
+const UserMessageComponent = ({ content, timestamp = "2:35 PM", onEdit }: UserMessageProps) => {
   // Parse slash commands from content
   const parseContent = (): { isCommand: false } | { isCommand: true; command: string; args: string } => {
     const commandMatch = content.match(/^(\/\w+)\s*(.*)$/);
@@ -24,7 +25,11 @@ export function UserMessage({ content, timestamp = "2:35 PM", onEdit }: UserMess
   const parsed = parseContent();
 
   return (
-    <div className="message-animate flex justify-end gap-2 md:gap-4 group">
+    <article
+      role="article"
+      aria-label={`User message${timestamp ? ` at ${timestamp}` : ''}`}
+      className="message-animate flex justify-end gap-2 md:gap-4 group"
+    >
       <div className="max-w-[85%] md:max-w-2xl">
         {parsed.isCommand ? (
           <div className="inline-flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-md rounded-xl">
@@ -39,8 +44,9 @@ export function UserMessage({ content, timestamp = "2:35 PM", onEdit }: UserMess
           {onEdit && (
             <button
               onClick={onEdit}
+              aria-label="Edit message"
               className="p-1.5 md:p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors active:scale-95"
-              title="Edit"
+              title="Edit message"
             >
               <svg className="w-4 h-4 md:w-3.5 md:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -50,9 +56,12 @@ export function UserMessage({ content, timestamp = "2:35 PM", onEdit }: UserMess
           <div className="text-xs text-zinc-400">{timestamp}</div>
         </div>
       </div>
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0" aria-hidden="true">
         <Avatar type="user" />
       </div>
-    </div>
+    </article>
   );
-}
+};
+
+// Export memoized component
+export const UserMessage = memo(UserMessageComponent);

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await axios.post(
-      `${backendUrl}/api/v1/extract`,
+      `${backendUrl}/api/v1/extract/`,
       {
         url: body.url,
         schema: body.schema,

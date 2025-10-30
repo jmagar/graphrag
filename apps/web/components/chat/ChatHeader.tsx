@@ -2,15 +2,34 @@
 
 import { ConversationTabs } from './ConversationTabs';
 import { MobileMenu } from '../layout/MobileMenu';
+import { exportMessagesToMarkdown } from '@/lib/export-markdown';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string | string[];
+  timestamp?: string;
+  citations?: Array<{ number: number; title: string; url?: string }>;
+}
 
 interface ChatHeaderProps {
   onLeftMenuClick?: () => void;
   onRightMenuClick?: () => void;
+  messages?: Message[];
 }
 
-export function ChatHeader({ onLeftMenuClick, onRightMenuClick }: ChatHeaderProps) {
+export function ChatHeader({ onLeftMenuClick, onRightMenuClick, messages = [] }: ChatHeaderProps) {
   const handleExport = () => {
-    alert('Export functionality - to be implemented');
+    if (messages.length === 0) {
+      alert('No messages to export');
+      return;
+    }
+
+    try {
+      exportMessagesToMarkdown(messages);
+    } catch (error) {
+      throw new Error('Failed to export conversation');
+    }
   };
 
   const handleShare = () => {
@@ -41,8 +60,10 @@ export function ChatHeader({ onLeftMenuClick, onRightMenuClick }: ChatHeaderProp
         <div className="flex items-center gap-1 md:gap-2">
           <button
             onClick={handleExport}
-            className="w-9 h-9 md:w-8 md:h-8 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-lg flex items-center justify-center transition-colors active:scale-95"
-            title="Export"
+            aria-label={`Export conversation (${messages.length} messages)`}
+            disabled={messages.length === 0}
+            className="w-9 h-9 md:w-8 md:h-8 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-lg flex items-center justify-center transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={messages.length === 0 ? 'No messages to export' : `Export ${messages.length} messages to Markdown`}
           >
             <svg className="w-4 h-4 text-zinc-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>

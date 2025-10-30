@@ -30,7 +30,7 @@ export const firecrawlServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const response = await axios.post(`${backendUrl}/api/v1/scrape`, {
+          const response = await axios.post(`${backendUrl}/api/v1/scrape/`, {
             url: args.url,
             formats: args.formats
           }, { timeout: 60000 });
@@ -69,7 +69,7 @@ export const firecrawlServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const response = await axios.post(`${backendUrl}/api/v1/map`, {
+          const response = await axios.post(`${backendUrl}/api/v1/map/`, {
             url: args.url,
             limit: args.limit
           }, { timeout: 60000 });
@@ -104,7 +104,7 @@ export const firecrawlServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const response = await axios.post(`${backendUrl}/api/v1/search`, {
+          const response = await axios.post(`${backendUrl}/api/v1/search/`, {
             query: args.query,
             limit: Math.min(args.limit, 10),
             formats: ["markdown"]
@@ -153,7 +153,7 @@ export const firecrawlServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const response = await axios.post(`${backendUrl}/api/v1/extract`, {
+          const response = await axios.post(`${backendUrl}/api/v1/extract/`, {
             url: args.url,
             schema: { extract: args.schema_description },
             formats: ["markdown"]
@@ -276,7 +276,7 @@ export const firecrawlServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const response = await axios.post(`${backendUrl}/api/v1/query`, {
+          const response = await axios.post(`${backendUrl}/api/v1/query/`, {
             query: args.query,
             limit: Math.min(args.limit, 10),
             score_threshold: args.score_threshold,

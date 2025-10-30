@@ -15,7 +15,7 @@ import 'katex/dist/katex.min.css';
 
 interface AIMessageProps {
   content: string[];
-  citations?: Array<{ number: number; title: string }>;
+  citations?: Array<{ number: number; title: string; url?: string; preview?: string }>;
   timestamp?: string;
   isStreaming?: boolean;
   artifact?: {
@@ -28,6 +28,7 @@ interface AIMessageProps {
   toolCalls?: Array<{
     command: string;
     args?: string;
+    status?: 'running' | 'complete' | 'error';
   }>;
   crawl?: {
     jobId: string;
@@ -76,6 +77,7 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
                 key={index}
                 command={toolCall.command}
                 args={toolCall.args}
+                status={toolCall.status || 'complete'}
               />
             ))}
           </div>
@@ -210,6 +212,8 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
                 key={citation.number}
                 number={citation.number}
                 title={citation.title}
+                url={citation.url}
+                preview={citation.preview}
               />
             ))}
           </div>

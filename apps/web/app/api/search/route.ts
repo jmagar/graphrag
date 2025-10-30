@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await axios.post(
-      `${backendUrl}/api/v1/search`,
+      `${backendUrl}/api/v1/search/`,
       {
         query: body.query,
         limit: body.limit || 5,

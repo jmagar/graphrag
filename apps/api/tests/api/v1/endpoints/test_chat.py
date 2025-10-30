@@ -61,7 +61,7 @@ class TestChatWithRAG:
         assert response.status_code == 200
         assert data["conversation_id"] == conv_id
 
-    async def test_chat_saves_user_message(self, test_client: AsyncClient):
+    async def test_chat_saves_user_message(self, test_client: AsyncClient, mock_llm_service):
         """Test chat saves user message to conversation."""
         payload = {
             "message": "What is GraphRAG?",
@@ -80,7 +80,7 @@ class TestChatWithRAG:
         assert any(m["role"] == "user" and m["content"] == "What is GraphRAG?" 
                    for m in conv_data["messages"])
 
-    async def test_chat_saves_assistant_message(self, test_client: AsyncClient):
+    async def test_chat_saves_assistant_message(self, test_client: AsyncClient, mock_llm_service):
         """Test chat saves assistant response to conversation."""
         payload = {
             "message": "Hello!",
@@ -98,7 +98,7 @@ class TestChatWithRAG:
         assert len(conv_data["messages"]) >= 2  # User + Assistant
         assert any(m["role"] == "assistant" for m in conv_data["messages"])
 
-    async def test_chat_returns_message_response(self, test_client: AsyncClient):
+    async def test_chat_returns_message_response(self, test_client: AsyncClient, mock_llm_service):
         """Test chat returns the assistant message in response."""
         payload = {
             "message": "Hello!",
@@ -113,10 +113,11 @@ class TestChatWithRAG:
         assert "content" in data["message"]
         assert len(data["message"]["content"]) > 0
 
+    @patch("app.api.v1.endpoints.chat.LLMService")
     @patch("app.api.v1.endpoints.chat.VectorDBService")
     @patch("app.api.v1.endpoints.chat.EmbeddingsService")
     async def test_chat_with_rag_enabled_queries_vector_db(
-        self, mock_embeddings_cls, mock_vector_db_cls, test_client: AsyncClient
+        self, mock_embeddings_cls, mock_vector_db_cls, mock_llm_cls, test_client: AsyncClient
     ):
         """Test chat with RAG enabled queries vector database."""
         # Setup mocks
@@ -137,6 +138,10 @@ class TestChatWithRAG:
         ]
         mock_vector_db_cls.return_value = mock_vector_db
         
+        mock_llm = AsyncMock()
+        mock_llm.generate_response.return_value = "Test LLM response"
+        mock_llm_cls.return_value = mock_llm
+        
         payload = {
             "message": "What is GraphRAG?",
             "use_rag": True,
@@ -152,10 +157,11 @@ class TestChatWithRAG:
         # Verify vector search was performed
         mock_vector_db.search.assert_called_once()
 
+    @patch("app.api.v1.endpoints.chat.LLMService")
     @patch("app.api.v1.endpoints.chat.VectorDBService")
     @patch("app.api.v1.endpoints.chat.EmbeddingsService")
     async def test_chat_returns_sources_when_rag_enabled(
-        self, mock_embeddings_cls, mock_vector_db_cls, test_client: AsyncClient
+        self, mock_embeddings_cls, mock_vector_db_cls, mock_llm_cls, test_client: AsyncClient
     ):
         """Test chat returns RAG sources when enabled."""
         # Setup mocks
@@ -176,6 +182,10 @@ class TestChatWithRAG:
         ]
         mock_vector_db_cls.return_value = mock_vector_db
         
+        mock_llm = AsyncMock()
+        mock_llm.generate_response.return_value = "Test LLM response"
+        mock_llm_cls.return_value = mock_llm
+        
         payload = {
             "message": "Tell me about GraphRAG",
             "use_rag": True
@@ -187,7 +197,7 @@ class TestChatWithRAG:
         assert "sources" in data
         assert len(data["sources"]) > 0
 
-    async def test_chat_without_rag_has_empty_sources(self, test_client: AsyncClient):
+    async def test_chat_without_rag_has_empty_sources(self, test_client: AsyncClient, mock_llm_service):
         """Test chat without RAG returns empty sources."""
         payload = {
             "message": "Hello!",
@@ -245,7 +255,7 @@ class TestChatWithRAG:
         assert len(call_args.kwargs["context"]) > 0
 
     async def test_chat_generates_conversation_title_from_first_message(
-        self, test_client: AsyncClient
+        self, test_client: AsyncClient, mock_llm_service
     ):
         """Test chat generates conversation title from first user message."""
         payload = {
@@ -265,7 +275,7 @@ class TestChatWithRAG:
         assert conv_data["title"] != ""
         assert len(conv_data["title"]) > 0
 
-    async def test_chat_handles_invalid_conversation_id(self, test_client: AsyncClient):
+    async def test_chat_handles_invalid_conversation_id(self, test_client: AsyncClient, mock_llm_service):
         """Test chat handles non-existent conversation ID."""
         fake_id = "00000000-0000-0000-0000-000000000000"
         
