@@ -29,31 +29,57 @@ export function Artifact({ type, content, language = 'text', title, url }: Artif
     switch (type) {
       case 'markdown':
         return (
-          <div className="prose prose-sm dark:prose-invert max-w-none p-4 overflow-auto max-h-[600px]">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ node, inline, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  return !inline && match ? (
-                    <SyntaxHighlighter
-                      style={vscDarkPlus as any}
-                      language={match[1]}
-                      PreTag="div"
-                      {...props}
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code className={className} {...props}>
+          <div className="p-4 overflow-auto max-h-[600px] bg-white dark:bg-zinc-900">
+            <div className="prose prose-sm max-w-none prose-headings:text-zinc-900 prose-p:text-zinc-800 prose-a:text-blue-600 prose-strong:text-zinc-900 prose-code:text-zinc-900 prose-pre:bg-zinc-100 prose-li:text-zinc-800">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  // Remove all images (including logos, flags, etc.)
+                  img: () => null,
+                  
+                  // Code blocks with syntax highlighting
+                  code({ node, inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    return !inline && match ? (
+                      <SyntaxHighlighter
+                        style={vscDarkPlus as any}
+                        language={match[1]}
+                        PreTag="div"
+                        {...props}
+                      >
+                        {String(children).replace(/\n$/, '')}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className="bg-zinc-100 text-zinc-900 px-1.5 py-0.5 rounded text-xs" {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                  
+                  // Explicit colors for headings
+                  h1: ({ children }) => <h1 className="text-2xl font-bold text-zinc-900 mt-6 mb-4">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-xl font-bold text-zinc-900 mt-5 mb-3">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-lg font-semibold text-zinc-900 mt-4 mb-2">{children}</h3>,
+                  
+                  // Paragraph styling
+                  p: ({ children }) => <p className="text-zinc-800 leading-relaxed mb-4">{children}</p>,
+                  
+                  // List styling
+                  ul: ({ children }) => <ul className="list-disc list-inside text-zinc-800 mb-4 space-y-1">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside text-zinc-800 mb-4 space-y-1">{children}</ol>,
+                  li: ({ children }) => <li className="text-zinc-800">{children}</li>,
+                  
+                  // Links
+                  a: ({ href, children }) => (
+                    <a href={href} className="text-blue-600 hover:text-blue-700 underline" target="_blank" rel="noopener noreferrer">
                       {children}
-                    </code>
-                  );
-                },
-              }}
-            >
-              {content}
-            </ReactMarkdown>
+                    </a>
+                  ),
+                }}
+              >
+                {content}
+              </ReactMarkdown>
+            </div>
           </div>
         );
 

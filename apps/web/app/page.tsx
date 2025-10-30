@@ -3,10 +3,13 @@
 import { useState, useRef } from 'react';
 import { LeftSidebar } from '@/components/layout/LeftSidebar';
 import { RightSidebar } from '@/components/layout/RightSidebar';
+import { SidebarDrawer } from '@/components/layout/SidebarDrawer';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { AIMessage } from '@/components/chat/AIMessage';
 import { UserMessage } from '@/components/chat/UserMessage';
 import { ChatInput } from '@/components/input/ChatInput';
+import { TypingIndicator } from '@/components/chat/TypingIndicator';
+import { useIsDesktop } from '@/hooks/useMediaQuery';
 
 interface Message {
   id: string;
@@ -31,8 +34,11 @@ interface Message {
 export default function GraphRAGPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messageTimestampsRef = useRef<number[]>([]);
+  const isDesktop = useIsDesktop();
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -253,16 +259,28 @@ export default function GraphRAGPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-      {/* Left Sidebar */}
-      <LeftSidebar />
+      {/* Left Sidebar - Desktop Only */}
+      {isDesktop && <LeftSidebar />}
+      
+      {/* Left Drawer - Mobile/Tablet */}
+      <SidebarDrawer
+        isOpen={leftDrawerOpen}
+        onClose={() => setLeftDrawerOpen(false)}
+        side="left"
+      >
+        <LeftSidebar />
+      </SidebarDrawer>
       
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-zinc-50 dark:bg-zinc-900">
-        <ChatHeader />
+        <ChatHeader 
+          onLeftMenuClick={() => setLeftDrawerOpen(true)}
+          onRightMenuClick={() => setRightDrawerOpen(true)}
+        />
         
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto custom-scroll pb-32">
-          <div className="max-w-3xl mx-auto px-6 py-12 space-y-6">
+        <div className="flex-1 overflow-y-auto custom-scroll pb-24 md:pb-32">
+          <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-12 space-y-4 md:space-y-6">
             {messages.map((message) =>
               message.role === 'assistant' ? (
                 <AIMessage
@@ -280,6 +298,9 @@ export default function GraphRAGPage() {
                 />
               )
             )}
+            
+            {/* Typing Indicator */}
+            {isLoading && <TypingIndicator />}
           </div>
         </div>
         
@@ -287,8 +308,17 @@ export default function GraphRAGPage() {
         <ChatInput onSend={handleSendMessage} />
       </div>
       
-      {/* Right Sidebar */}
-      <RightSidebar />
+      {/* Right Sidebar - Desktop Only */}
+      {isDesktop && <RightSidebar />}
+      
+      {/* Right Drawer - Mobile/Tablet */}
+      <SidebarDrawer
+        isOpen={rightDrawerOpen}
+        onClose={() => setRightDrawerOpen(false)}
+        side="right"
+      >
+        <RightSidebar />
+      </SidebarDrawer>
     </div>
   );
 }

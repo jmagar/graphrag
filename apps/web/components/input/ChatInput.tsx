@@ -77,8 +77,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
       return;
     }
 
-    // ⌘+Enter to send
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    // Enter to send (Shift+Enter for new line)
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -158,7 +158,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
               <textarea
                 ref={textareaRef}
                 rows={1}
-                placeholder="Ask me anything... (@ to mention sources, / for commands)"
+                placeholder="Ask me anything... (Enter to send, Shift+Enter for new line)"
                 value={value}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
