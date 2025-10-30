@@ -21,9 +21,26 @@ export default function GraphRAGPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const messageTimestampsRef = useRef<number[]>([]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
+
+    // RATE LIMITING: Max 5 messages per minute
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000;
+    
+    // Remove timestamps older than 1 minute
+    messageTimestampsRef.current = messageTimestampsRef.current.filter(ts => ts > oneMinuteAgo);
+    
+    // Check if user has sent 5 messages in the last minute
+    if (messageTimestampsRef.current.length >= 5) {
+      alert('Rate limit: You can only send 5 messages per minute. Please wait.');
+      return;
+    }
+    
+    // Add current timestamp
+    messageTimestampsRef.current.push(now);
 
     // Add user message
     const userMessage: Message = {
@@ -101,26 +118,8 @@ export default function GraphRAGPage() {
             const parsed = JSON.parse(data);
 
             // Handle different message types from Claude Agent SDK
-            if (parsed.type === 'assistant') {
-              // Assistant message with content
-              const content = parsed.message?.content;
-              if (Array.isArray(content)) {
-                for (const block of content) {
-                  if (block.type === 'text') {
-                    accumulatedContent += block.text;
-                  }
-                }
-              } else if (typeof content === 'string') {
-                accumulatedContent += content;
-              }
-
-              setMessages(prev => 
-                prev.map(m => m.id === assistantId 
-                  ? { ...m, content: accumulatedContent }
-                  : m
-                )
-              );
-            } else if (parsed.type === 'stream_event') {
+            // ONLY use stream_event for live updates to avoid duplicates
+            if (parsed.type === 'stream_event') {
               // Streaming partial messages
               const event = parsed.event;
               if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
