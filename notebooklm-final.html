@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GraphRAG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        * {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #3f3f46;
+            border-radius: 3px;
+        }
+        
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #52525b;
+        }
+        
+        /* Smooth transitions */
+        * {
+            transition-property: background-color, border-color, color, box-shadow, transform, opacity;
+            transition-duration: 150ms;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Message animation */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message-animate {
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+            opacity: 0;
+        }
+        
+        /* Mention dropdown */
+        .mention-dropdown {
+            max-height: 300px;
+        }
+        
+        /* Tab indicator */
+        .tab-indicator {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 2px;
+            background: #3b82f6;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Commands dropdown */
+        .commands-dropdown {
+            max-height: 300px;
+        }
+        
+        .command-item.selected {
+            background: rgb(244 244 245) !important;
+        }
+        
+        .dark .command-item.selected {
+            background: rgb(39 39 42) !important;
+        }
+        
+        /* Tab dropdowns */
+        .tab-dropdown {
+            max-height: 400px;
+        }
+    </style>
+</head>
+<body class="bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
+    
+    <!-- Main Container -->
+    <div class="flex h-screen overflow-hidden">
+        
+        <!-- Left Sidebar -->
+        <div class="w-72 border-r border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 flex flex-col">
+            
+            <!-- Sidebar Header -->
+            <div class="h-14 border-b border-zinc-200 dark:border-zinc-800/80 flex items-center justify-between px-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center">
+                        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <span class="text-sm font-semibold">GraphRAG</span>
+                </div>
+                <button id="addSourceBtn" class="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white rounded-lg flex items-center justify-center transition-all shadow-sm hover:shadow-md">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Conversations List -->
+            <div class="flex-1 overflow-y-auto custom-scroll">
+                
+                <!-- Spaces Section -->
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800/80">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Spaces</span>
+                    </div>
+                    <div class="space-y-1.5">
+                        <button class="w-full flex items-center gap-2.5 text-xs p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-500/20">
+                            <div class="w-7 h-7 rounded-md bg-blue-500/20 flex items-center justify-center shrink-0">
+                                <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="font-semibold text-zinc-900 dark:text-zinc-100">Work</div>
+                                <div class="text-[10px] text-zinc-500 dark:text-zinc-400">247 sources</div>
+                            </div>
+                        </button>
+                        <button class="w-full flex items-center gap-2.5 text-xs p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer">
+                            <div class="w-7 h-7 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
+                                <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="font-semibold text-zinc-700 dark:text-zinc-300">Play</div>
+                                <div class="text-[10px] text-zinc-500 dark:text-zinc-400">89 sources</div>
+                            </div>
+                        </button>
+                        <button class="w-full flex items-center gap-2.5 text-xs p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer">
+                            <div class="w-7 h-7 rounded-md bg-purple-500/10 flex items-center justify-center shrink-0">
+                                <svg class="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="font-semibold text-zinc-700 dark:text-zinc-300">Dev</div>
+                                <div class="text-[10px] text-zinc-500 dark:text-zinc-400">156 sources</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Tags Section -->
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800/80">
+                    <div class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Tags</div>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-2.5 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-md text-xs font-medium cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-500/20">embeddings</span>
+                        <span class="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-md text-[11px] font-medium cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-500/20">qdrant</span>
+                        <span class="px-2.5 py-1 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 rounded-md text-xs font-medium cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-500/20">vector-search</span>
+                        <span class="px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-md text-[10px] font-medium cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-500/20">api</span>
+                        <span class="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 rounded-md text-sm font-medium cursor-pointer hover:bg-cyan-100 dark:hover:bg-cyan-500/20">configuration</span>
+                        <span class="px-2 py-0.5 bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 rounded-md text-[11px] font-medium cursor-pointer hover:bg-rose-100 dark:hover:bg-rose-500/20">crawling</span>
+                        <span class="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 rounded-md text-xs font-medium cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-500/20">dimensions</span>
+                        <span class="px-2 py-0.5 bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 rounded-md text-[10px] font-medium cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-500/20">tei</span>
+                    </div>
+                </div>
+                
+                <!-- Statistics -->
+                <div class="p-4 border-b border-zinc-200 dark:border-zinc-800/80">
+                    <div class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Statistics</div>
+                    <div class="space-y-1">
+                        <div class="flex items-center justify-between py-1 text-xs">
+                            <span class="text-zinc-600 dark:text-zinc-400">Documents</span>
+                            <span class="font-semibold text-zinc-900 dark:text-zinc-100">1,247</span>
+                        </div>
+                        <div class="flex items-center justify-between py-1 text-xs">
+                            <span class="text-zinc-600 dark:text-zinc-400">Vectors</span>
+                            <span class="font-semibold text-zinc-900 dark:text-zinc-100">45.2K</span>
+                        </div>
+                        <div class="flex items-center justify-between py-1 text-xs">
+                            <span class="text-zinc-600 dark:text-zinc-400">Storage</span>
+                            <span class="font-semibold text-zinc-900 dark:text-zinc-100">2.4 GB</span>
+                        </div>
+                    </div>
+                </div>
+                
+
+            </div>
+        </div>
+        
+        <!-- Main Chat Area -->
+        <div class="flex-1 flex flex-col bg-zinc-50 dark:bg-zinc-900">
+            
+            <!-- Chat Header with Tabs -->
+            <div class="border-b border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900">
+                <div class="h-14 flex items-center justify-between px-6">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-sm font-semibold">GraphRAG Configuration</h2>
+                            <div class="flex items-center gap-1.5 text-xs text-zinc-500">
+                                <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                <span>3 sources</span>
+                            </div>
+                        </div>
+                        <!-- Conversation Tabs -->
+                        <div class="flex items-center gap-1 ml-2 relative">
+                            <button class="conv-tab active px-2.5 py-1 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 flex items-center gap-1" data-tab="chat">
+                                Chat
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            <button class="conv-tab px-2.5 py-1 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 flex items-center gap-1" data-tab="sources">
+                                Sources
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            <button class="conv-tab px-2.5 py-1 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 flex items-center gap-1" data-tab="graph">
+                                Graph
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            <button class="conv-tab px-2.5 py-1 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 flex items-center gap-1" data-tab="pins">
+                                Pins
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            <button class="conv-tab px-2.5 py-1 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 flex items-center gap-1" data-tab="composer">
+                                Composer
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            <button class="conv-tab px-2.5 py-1 rounded-md text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 flex items-center gap-1" data-tab="explore">
+                                Explore
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            
+                            <!-- Tab Dropdowns (hidden by default) -->
+                            <div id="tabDropdown" class="hidden absolute top-full mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50" style="left: var(--dropdown-left, 0);">
+                                <div class="tab-dropdown overflow-y-auto custom-scroll p-1">
+                                    <!-- Dropdown content will be populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="exportBtn" class="w-8 h-8 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-lg flex items-center justify-center" title="Export">
+                            <svg class="w-4 h-4 text-zinc-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                        </button>
+                        <button id="shareBtn" class="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white rounded-lg flex items-center justify-center transition-all shadow-sm hover:shadow-md" title="Share">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Messages -->
+            <div class="flex-1 overflow-y-auto custom-scroll pb-32" id="messagesContainer">
+                <div class="max-w-3xl mx-auto px-6 py-12 space-y-6" id="messagesInner">
+                    
+                    <!-- AI Message -->
+                    <div class="message-animate flex gap-4 group">
+                        <div class="w-8 h-8 rounded-xl overflow-hidden shrink-0 shadow-md shadow-blue-500/20 dark:shadow-blue-500/40 ring-1 ring-white/50 dark:ring-zinc-900/50">
+                            <div class="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center relative">
+                                <!-- Mandalorian Helmet (Pedro Pascal) -->
+                                <div class="relative">
+                                    <!-- Helmet -->
+                                    <div class="w-5 h-5 bg-zinc-400 rounded-sm relative">
+                                        <!-- Visor - T-shaped -->
+                                        <div class="absolute top-1.5 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-zinc-900 rounded-full"></div>
+                                        <div class="absolute top-2 left-1/2 -translate-x-1/2 w-1 h-2 bg-zinc-900 rounded-sm"></div>
+                                        <!-- Side details -->
+                                        <div class="absolute top-0.5 left-0 w-1 h-1 bg-zinc-500 rounded-full"></div>
+                                        <div class="absolute top-0.5 right-0 w-1 h-1 bg-zinc-500 rounded-full"></div>
+                                        <!-- Chin piece -->
+                                        <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-1 bg-zinc-500 rounded-b-sm"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-1 space-y-3 pt-0.5">
+                            <div class="text-sm leading-relaxed text-zinc-800 dark:text-zinc-100 space-y-3">
+                                <p class="animate-fade-in">Based on your sources, GraphRAG combines graph databases with retrieval-augmented generation to create powerful knowledge systems.</p>
+                                <p class="animate-fade-in" style="animation-delay: 0.1s;">The system uses <strong class="font-semibold text-blue-600 dark:text-blue-400">Qdrant</strong> for vector storage with TEI embeddings in a 768-dimensional space.</p>
+                            </div>
+                            
+                            <!-- Citations -->
+                            <div class="flex flex-wrap gap-2">
+                                <button class="inline-flex items-center gap-1.5 h-7 px-2.5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-500/10 dark:to-emerald-500/5 hover:from-emerald-100 hover:to-emerald-100 dark:hover:from-emerald-500/20 dark:hover:to-emerald-500/10 border border-emerald-200/50 dark:border-emerald-500/20 rounded-lg text-xs transition-all hover:shadow-sm hover:shadow-emerald-500/10">
+                                    <span class="w-4 h-4 rounded bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold shadow-sm">1</span>
+                                    <span class="font-medium text-emerald-900 dark:text-emerald-300 text-xs">Getting Started</span>
+                                    <svg class="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <!-- Message Actions -->
+                            <div class="flex items-center gap-2 pt-1">
+                                <button class="reaction-btn flex items-center gap-1 px-2 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-500/10 text-xs text-zinc-500 hover:text-blue-600 dark:hover:text-blue-400 border border-transparent hover:border-blue-200 dark:hover:border-blue-500/20 transition-all">
+                                    <span class="text-sm">👍</span>
+                                    <span class="font-medium text-xs">2</span>
+                                </button>
+                                <button class="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" title="Copy">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                    </svg>
+                                </button>
+                                <button class="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" title="Regenerate">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                    </svg>
+                                </button>
+                                <div class="text-xs text-zinc-400 opacity-0 group-hover:opacity-100 ml-auto">2:34 PM</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- User Message -->
+                    <div class="message-animate flex justify-end gap-4 group">
+                        <div class="max-w-2xl">
+                            <div class="inline-block px-4 py-2.5 bg-gradient-to-br from-blue-600 to-blue-700 shadow-lg shadow-blue-500/25 dark:shadow-blue-500/40 rounded-xl">
+                                <p class="text-sm text-white font-medium">How do I configure the embedding dimensions?</p>
+                            </div>
+                            <div class="flex items-center justify-end gap-2 mt-2 opacity-0 group-hover:opacity-100">
+                                <button class="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors" title="Edit">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </button>
+                                <div class="text-xs text-zinc-400">2:35 PM</div>
+                            </div>
+                        </div>
+                        <div class="w-8 h-8 rounded-xl overflow-hidden shrink-0 shadow-md ring-1 ring-white/10 dark:ring-zinc-700/50">
+                            <div class="w-full h-full bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center relative">
+                                <!-- Baby Yoda (Grogu) -->
+                                <div class="relative">
+                                    <!-- Head -->
+                                    <div class="w-5 h-4 bg-emerald-400 rounded-full relative">
+                                        <!-- Eyes -->
+                                        <div class="absolute top-1 left-0.5 w-1 h-1.5 bg-zinc-900 rounded-full"></div>
+                                        <div class="absolute top-1 right-0.5 w-1 h-1.5 bg-zinc-900 rounded-full"></div>
+                                        <!-- Left Ear -->
+                                        <div class="absolute -left-1.5 -top-1 w-2 h-3 bg-emerald-400 rounded-full transform -rotate-12"></div>
+                                        <!-- Right Ear -->
+                                        <div class="absolute -right-1.5 -top-1 w-2 h-3 bg-emerald-400 rounded-full transform rotate-12"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="relative pointer-events-none">
+                <div class="absolute bottom-0 left-0 right-0 pb-6 pointer-events-auto">
+                    <div class="max-w-3xl mx-auto px-6">
+                    <div class="relative">
+                        <!-- Mention Dropdown -->
+                        <div id="mentionDropdown" class="hidden absolute bottom-full left-0 mb-2 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden">
+                            <div class="p-2 border-b border-zinc-200 dark:border-zinc-800">
+                                <div class="text-xs font-medium text-zinc-500 px-2 py-1">Mention a source</div>
+                            </div>
+                            <div class="mention-dropdown overflow-y-auto custom-scroll">
+                                <button class="w-full px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">Getting Started Guide</div>
+                                        <div class="text-xs text-zinc-500 truncate">247 chunks</div>
+                                    </div>
+                                </button>
+                                <button class="w-full px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-md bg-blue-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">API Documentation</div>
+                                        <div class="text-xs text-zinc-500 truncate">189 chunks</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Commands Dropdown -->
+                        <div id="commandsDropdown" class="hidden absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl overflow-hidden">
+                            <div class="p-1.5 border-b border-zinc-200 dark:border-zinc-800">
+                                <div class="text-[10px] font-semibold text-zinc-400 px-2 py-1 uppercase tracking-wider">Commands</div>
+                            </div>
+                            <div class="commands-dropdown overflow-y-auto custom-scroll p-1">
+                                <button class="command-item w-full px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2 rounded-md" data-command="/config">
+                                    <div class="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-medium text-zinc-900 dark:text-zinc-100">/config</div>
+                                        <div class="text-[10px] text-zinc-500">Configure settings</div>
+                                    </div>
+                                </button>
+                                <button class="command-item w-full px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2 rounded-md" data-command="/commands">
+                                    <div class="w-6 h-6 rounded bg-purple-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-medium text-zinc-900 dark:text-zinc-100">/commands</div>
+                                        <div class="text-[10px] text-zinc-500">View all commands</div>
+                                    </div>
+                                </button>
+                                <button class="command-item w-full px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2 rounded-md" data-command="/agents">
+                                    <div class="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-medium text-zinc-900 dark:text-zinc-100">/agents</div>
+                                        <div class="text-[10px] text-zinc-500">Manage AI agents</div>
+                                    </div>
+                                </button>
+                                <button class="command-item w-full px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2 rounded-md" data-command="/search">
+                                    <div class="w-6 h-6 rounded bg-cyan-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-medium text-zinc-900 dark:text-zinc-100">/search</div>
+                                        <div class="text-[10px] text-zinc-500">Search sources</div>
+                                    </div>
+                                </button>
+                                <button class="command-item w-full px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2 rounded-md" data-command="/crawl">
+                                    <div class="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-medium text-zinc-900 dark:text-zinc-100">/crawl</div>
+                                        <div class="text-[10px] text-zinc-500">Crawl a website</div>
+                                    </div>
+                                </button>
+                                <button class="command-item w-full px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2 rounded-md" data-command="/query">
+                                    <div class="w-6 h-6 rounded bg-rose-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-medium text-zinc-900 dark:text-zinc-100">/query</div>
+                                        <div class="text-[10px] text-zinc-500">Custom query</div>
+                                    </div>
+                                </button>
+                                <button class="command-item w-full px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-2 rounded-md" data-command="/model">
+                                    <div class="w-6 h-6 rounded bg-indigo-500/10 flex items-center justify-center shrink-0">
+                                        <svg class="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-medium text-zinc-900 dark:text-zinc-100">/model</div>
+                                        <div class="text-[10px] text-zinc-500">Switch AI model</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Input Field -->
+                        <div class="relative flex items-end gap-2 p-2.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 focus-within:border-blue-500 dark:focus-within:border-blue-500 focus-within:shadow-lg focus-within:shadow-blue-500/10 dark:focus-within:shadow-blue-500/20 rounded-xl transition-all shadow-md dark:shadow-lg">
+                            <div class="flex items-center pb-0.5">
+                                <button class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all hover:scale-105" title="Attach file">
+                                    <svg class="w-4 h-4 text-zinc-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <textarea 
+                                id="chatInput"
+                                rows="1" 
+                                placeholder="Ask me anything... (@ to mention sources, / for commands)"
+                                class="flex-1 bg-transparent px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none resize-none max-h-[200px]"
+                                style="min-height: 36px;"
+                            ></textarea>
+                            
+                            <div class="flex items-center gap-1 pb-0.5">
+                                <button class="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all hover:scale-105 group" title="Enhance prompt with AI">
+                                    <svg class="w-4 h-4 text-purple-500 dark:text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                                    </svg>
+                                </button>
+                                
+                                <button id="sendButton" class="p-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-800 dark:disabled:to-zinc-800 disabled:cursor-not-allowed rounded-lg transition-all shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/50 hover:scale-105 disabled:shadow-none disabled:scale-100" disabled>
+                                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Input Footer -->
+                        <div class="flex items-center justify-between mt-2 px-1" id="inputFooter">
+                            <!-- Dynamic hints will be inserted here by JavaScript -->
+                        </div>
+                    </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Right Sidebar - Workflows -->
+        <aside class="w-72 border-l border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 overflow-y-auto custom-scroll p-4">
+            <div class="space-y-3">
+                <div class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">Workflows</div>
+                
+                <!-- Create -->
+                <button class="w-full p-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 text-left group transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0 group-hover:bg-blue-500/20 transition-colors">
+                            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">Create</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Generate new content</div>
+                        </div>
+                    </div>
+                </button>
+                
+                <!-- Report -->
+                <button class="w-full p-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-500/5 text-left group transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-colors">
+                            <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">Report</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Build comprehensive report</div>
+                        </div>
+                    </div>
+                </button>
+                
+                <!-- Mind Map -->
+                <button class="w-full p-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-purple-500 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-500/5 text-left group transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0 group-hover:bg-purple-500/20 transition-colors">
+                            <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">Mind Map</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Visualize connections</div>
+                        </div>
+                    </div>
+                </button>
+                
+                <!-- Graph -->
+                <button class="w-full p-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-cyan-500 dark:hover:border-cyan-500 hover:bg-cyan-50/50 dark:hover:bg-cyan-500/5 text-left group transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center shrink-0 group-hover:bg-cyan-500/20 transition-colors">
+                            <svg class="w-5 h-5 text-cyan-600 dark:text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">Graph</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Explore knowledge graph</div>
+                        </div>
+                    </div>
+                </button>
+                
+                <!-- Plan -->
+                <button class="w-full p-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-amber-500 dark:hover:border-amber-500 hover:bg-amber-50/50 dark:hover:bg-amber-500/5 text-left group transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 group-hover:bg-amber-500/20 transition-colors">
+                            <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">Plan</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Create project plan</div>
+                        </div>
+                    </div>
+                </button>
+                
+                <!-- PRD -->
+                <button class="w-full p-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-rose-500 dark:hover:border-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-500/5 text-left group transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0 group-hover:bg-rose-500/20 transition-colors">
+                            <svg class="w-5 h-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">PRD</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Product requirements doc</div>
+                        </div>
+                    </div>
+                </button>
+                
+                <!-- Tasks -->
+                <button class="w-full p-4 rounded-xl border-2 border-zinc-200 dark:border-zinc-800 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-500/5 text-left group transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 group-hover:bg-indigo-500/20 transition-colors">
+                            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-0.5">Tasks</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">Break down into tasks</div>
+                        </div>
+                    </div>
+                </button>
+            </div>
+        </aside>
+        
+    </div>
+    
+    <script>
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const mentionDropdown = document.getElementById('mentionDropdown');
+        const commandsDropdown = document.getElementById('commandsDropdown');
+        const inputFooter = document.getElementById('inputFooter');
+        
+        let selectedCommandIndex = -1;
+        let commandItems = [];
+        
+        // Update input footer hints
+        function updateFooterHints(isFocused) {
+            if (isFocused) {
+                inputFooter.innerHTML = `
+                    <div class="text-xs text-zinc-400">
+                        Type <kbd class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-[10px]">@</kbd> to mention sources or <kbd class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-[10px]">/</kbd> for commands
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-zinc-400">
+                        <kbd class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-[10px]">⌘</kbd>
+                        <span>+</span>
+                        <kbd class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-[10px]">Enter</kbd>
+                    </div>
+                `;
+            } else {
+                inputFooter.innerHTML = `
+                    <div class="flex items-center gap-1 text-xs text-zinc-400">
+                        <span>Press</span>
+                        <kbd class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-[10px]">⌘</kbd>
+                        <span>+</span>
+                        <kbd class="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded text-[10px]">K</kbd>
+                        <span>to focus</span>
+                    </div>
+                    <div class="text-xs text-zinc-400">&nbsp;</div>
+                `;
+            }
+        }
+        
+        // Initialize footer hints
+        updateFooterHints(false);
+        
+        // Focus/blur handlers
+        chatInput.addEventListener('focus', () => updateFooterHints(true));
+        chatInput.addEventListener('blur', () => {
+            // Delay to allow clicking on dropdowns
+            setTimeout(() => {
+                if (document.activeElement !== chatInput) {
+                    updateFooterHints(false);
+                }
+            }, 150);
+        });
+        
+        // Cmd+K to focus input
+        document.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                chatInput.focus();
+            }
+        });
+        
+        // Auto-resize textarea
+        chatInput.addEventListener('input', function() {
+            this.style.height = '44px';
+            this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+            
+            // Enable/disable send button
+            sendButton.disabled = !this.value.trim();
+            
+            const cursorPosition = this.selectionStart;
+            const textBeforeCursor = this.value.substring(0, cursorPosition);
+            
+            // Check for / command
+            const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
+            const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ');
+            
+            if (lastSlashIndex !== -1 && lastSlashIndex > lastSpaceIndex) {
+                commandsDropdown.classList.remove('hidden');
+                mentionDropdown.classList.add('hidden');
+                selectedCommandIndex = 0;
+                updateCommandSelection();
+                return;
+            }
+            
+            // Check for @ mention
+            const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+            
+            if (lastAtIndex !== -1 && lastAtIndex > lastSpaceIndex) {
+                mentionDropdown.classList.remove('hidden');
+                commandsDropdown.classList.add('hidden');
+            } else {
+                mentionDropdown.classList.add('hidden');
+                commandsDropdown.classList.add('hidden');
+            }
+        });
+        
+        // Update command selection highlight
+        function updateCommandSelection() {
+            commandItems = commandsDropdown.querySelectorAll('.command-item');
+            commandItems.forEach((item, idx) => {
+                if (idx === selectedCommandIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+        
+        // Keyboard navigation for commands
+        chatInput.addEventListener('keydown', function(e) {
+            if (!commandsDropdown.classList.contains('hidden')) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedCommandIndex = Math.min(selectedCommandIndex + 1, commandItems.length - 1);
+                    updateCommandSelection();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedCommandIndex = Math.max(selectedCommandIndex - 1, 0);
+                    updateCommandSelection();
+                } else if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+                    e.preventDefault();
+                    if (selectedCommandIndex >= 0 && selectedCommandIndex < commandItems.length) {
+                        commandItems[selectedCommandIndex].click();
+                    }
+                } else if (e.key === 'Escape') {
+                    commandsDropdown.classList.add('hidden');
+                } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                    // Type to search commands
+                    const searchChar = e.key.toLowerCase();
+                    for (let i = 0; i < commandItems.length; i++) {
+                        const commandText = commandItems[i].getAttribute('data-command').toLowerCase();
+                        if (commandText.includes(searchChar)) {
+                            selectedCommandIndex = i;
+                            updateCommandSelection();
+                            break;
+                        }
+                    }
+                }
+                return;
+            }
+            
+            // Cmd+Enter to send
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                if (!sendButton.disabled) {
+                    sendButton.click();
+                }
+            }
+        });
+        
+        // Command item clicks
+        document.querySelectorAll('.command-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const command = this.getAttribute('data-command');
+                const cursorPosition = chatInput.selectionStart;
+                const textBeforeCursor = chatInput.value.substring(0, cursorPosition);
+                const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
+                
+                chatInput.value = chatInput.value.substring(0, lastSlashIndex) + command + ' ' + chatInput.value.substring(cursorPosition);
+                chatInput.focus();
+                commandsDropdown.classList.add('hidden');
+            });
+        });
+        
+        // Send message
+        sendButton.addEventListener('click', function() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+            
+            // Add message to chat (simplified)
+            console.log('Sending:', message);
+            chatInput.value = '';
+            chatInput.style.height = '44px';
+            sendButton.disabled = true;
+        });
+        
+        // Conversation tabs (header)
+        const tabDropdown = document.getElementById('tabDropdown');
+        const tabDropdownContent = {
+            chat: [
+                { icon: '💬', title: 'New Chat', desc: 'Start a new conversation' },
+                { icon: '📋', title: 'Recent Chats', desc: 'View chat history' }
+            ],
+            sources: [
+                { icon: '📄', title: 'Add Source', desc: 'Upload new document' },
+                { icon: '🔗', title: 'Connect URL', desc: 'Add web content' }
+            ],
+            graph: [
+                { icon: '🌐', title: 'View Graph', desc: 'Explore knowledge graph' },
+                { icon: '🔍', title: 'Search Nodes', desc: 'Find connections' }
+            ],
+            pins: [
+                { icon: '📌', title: 'Pinned Items', desc: 'View saved content' },
+                { icon: '⭐', title: 'Favorites', desc: 'Quick access items' }
+            ],
+            composer: [
+                { icon: '✍️', title: 'New Document', desc: 'Create new content' },
+                { icon: '📝', title: 'Templates', desc: 'Use document templates' },
+                { icon: '🎨', title: 'Rich Editor', desc: 'Advanced formatting' }
+            ],
+            explore: [
+                { icon: '🧭', title: 'Discover', desc: 'Find related content' },
+                { icon: '🔎', title: 'Deep Dive', desc: 'Detailed analysis' }
+            ]
+        };
+        
+        document.querySelectorAll('.conv-tab').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const tab = this.getAttribute('data-tab');
+                
+                // Toggle active state
+                const wasActive = this.classList.contains('active');
+                document.querySelectorAll('.conv-tab').forEach(b => {
+                    b.classList.remove('active', 'text-blue-600', 'dark:text-blue-400', 'bg-blue-50', 'dark:bg-blue-500/10');
+                    b.classList.add('text-zinc-500');
+                });
+                this.classList.add('active', 'text-blue-600', 'dark:text-blue-400', 'bg-blue-50', 'dark:bg-blue-500/10');
+                this.classList.remove('text-zinc-500');
+                
+                // Show/hide dropdown
+                if (!wasActive && tabDropdownContent[tab]) {
+                    const items = tabDropdownContent[tab];
+                    const dropdownHTML = items.map(item => `
+                        <button class="w-full px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left flex items-center gap-3 rounded-md">
+                            <span class="text-xl">${item.icon}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">${item.title}</div>
+                                <div class="text-xs text-zinc-500">${item.desc}</div>
+                            </div>
+                        </button>
+                    `).join('');
+                    tabDropdown.querySelector('.tab-dropdown').innerHTML = dropdownHTML;
+                    
+                    // Position dropdown aligned with the clicked tab
+                    const rect = this.getBoundingClientRect();
+                    const parentRect = this.parentElement.getBoundingClientRect();
+                    const leftOffset = rect.left - parentRect.left;
+                    tabDropdown.style.setProperty('--dropdown-left', `${leftOffset}px`);
+                    
+                    tabDropdown.classList.remove('hidden');
+                } else {
+                    tabDropdown.classList.add('hidden');
+                }
+            });
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!tabDropdown.contains(e.target) && !e.target.closest('.conv-tab')) {
+                tabDropdown.classList.add('hidden');
+            }
+        });
+        
+        // Add Source button
+        document.getElementById('addSourceBtn').addEventListener('click', function() {
+            alert('Add Source functionality - to be implemented');
+        });
+        
+        // Share button
+        document.getElementById('shareBtn').addEventListener('click', function() {
+            alert('Share functionality - to be implemented');
+        });
+        
+        // Export button
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            alert('Export functionality - to be implemented');
+        });
+        
+        // Reaction buttons
+        document.querySelectorAll('.reaction-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.toggle('bg-zinc-100');
+                this.classList.toggle('dark:bg-zinc-900');
+            });
+        });
+    </script>
+    
+</body>
+</html>

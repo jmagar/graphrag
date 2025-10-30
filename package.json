@@ -1,0 +1,28 @@
+{
+  "name": "graphrag-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GraphRAG system with Firecrawl, Qdrant, and TEI embeddings",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run kill-ports && concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "cd apps/api && venv/bin/python -m app.main",
+    "kill-ports": "bash kill-ports.sh",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
