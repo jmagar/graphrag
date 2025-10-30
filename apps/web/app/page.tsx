@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { LeftSidebar } from '@/components/layout/LeftSidebar';
 import { RightSidebar } from '@/components/layout/RightSidebar';
 import { ChatHeader } from '@/components/chat/ChatHeader';
@@ -14,47 +14,161 @@ interface Message {
   content: string | string[];
   citations?: Array<{ number: number; title: string }>;
   timestamp: string;
+  isStreaming?: boolean;
 }
 
 export default function GraphRAGPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: [
-        'Based on your sources, GraphRAG combines graph databases with retrieval-augmented generation to create powerful knowledge systems.',
-        'The system uses <strong class="font-semibold text-blue-600 dark:text-blue-400">Qdrant</strong> for vector storage with TEI embeddings in a 768-dimensional space.'
-      ],
-      citations: [{ number: 1, title: 'Getting Started' }],
-      timestamp: '2:34 PM'
-    },
-    {
-      id: '2',
-      role: 'user',
-      content: 'How do I configure the embedding dimensions?',
-      timestamp: '2:35 PM'
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleSendMessage = (content: string) => {
-    const newMessage: Message = {
+  const handleSendMessage = async (content: string) => {
+    if (!content.trim() || isLoading) return;
+
+    // Add user message
+    const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content,
       timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     };
-    setMessages([...messages, newMessage]);
-    
-    // Simulate AI response after a short delay
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: ['I can help you with that! Let me search through your documentation...'],
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    // Create assistant message placeholder for streaming
+    const assistantId = (Date.now() + 1).toString();
+    const assistantMessage: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      isStreaming: true
+    };
+    setMessages(prev => [...prev, assistantMessage]);
+
+    try {
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController();
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: content,
+          history: messages.map(m => ({
+            role: m.role,
+            content: Array.isArray(m.content) ? m.content.join('\n') : m.content
+          }))
+        }),
+        signal: abortControllerRef.current.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.trim() || !line.startsWith('data: ')) continue;
+          
+          const data = line.slice(6); // Remove 'data: ' prefix
+          if (data === '[DONE]') {
+            setIsLoading(false);
+            setMessages(prev => 
+              prev.map(m => m.id === assistantId 
+                ? { ...m, isStreaming: false }
+                : m
+              )
+            );
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+
+            // Handle different message types from Claude Agent SDK
+            if (parsed.type === 'assistant') {
+              // Assistant message with content
+              const content = parsed.message?.content;
+              if (Array.isArray(content)) {
+                for (const block of content) {
+                  if (block.type === 'text') {
+                    accumulatedContent += block.text;
+                  }
+                }
+              } else if (typeof content === 'string') {
+                accumulatedContent += content;
+              }
+
+              setMessages(prev => 
+                prev.map(m => m.id === assistantId 
+                  ? { ...m, content: accumulatedContent }
+                  : m
+                )
+              );
+            } else if (parsed.type === 'stream_event') {
+              // Streaming partial messages
+              const event = parsed.event;
+              if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                accumulatedContent += event.delta.text;
+                setMessages(prev => 
+                  prev.map(m => m.id === assistantId 
+                    ? { ...m, content: accumulatedContent }
+                    : m
+                  )
+                );
+              }
+            } else if (parsed.type === 'result') {
+              // Final result
+              if (parsed.subtype === 'success' && parsed.result) {
+                setMessages(prev => 
+                  prev.map(m => m.id === assistantId 
+                    ? { ...m, content: accumulatedContent || parsed.result, isStreaming: false }
+                    : m
+                  )
+                );
+              }
+              setIsLoading(false);
+            } else if (parsed.type === 'error') {
+              throw new Error(parsed.error || 'Unknown error');
+            }
+          } catch (parseError) {
+            console.error('Error parsing SSE data:', parseError);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      setIsLoading(false);
+      
+      // Update assistant message with error
+      setMessages(prev => 
+        prev.map(m => m.id === assistantId 
+          ? { 
+              ...m, 
+              content: `Error: ${error.message || 'Failed to get response'}`,
+              isStreaming: false 
+            }
+          : m
+        )
+      );
+    } finally {
+      abortControllerRef.current = null;
+    }
   };
 
   return (
