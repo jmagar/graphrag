@@ -1,16 +1,25 @@
 import { Avatar } from './Avatar';
 import { Citation } from './Citation';
 import { MessageActions } from './MessageActions';
+import { Artifact } from './Artifact';
 
 interface AIMessageProps {
   content: string[];
   citations?: Array<{ number: number; title: string }>;
   timestamp?: string;
+  artifact?: {
+    type: 'markdown' | 'code' | 'text' | 'json' | 'html';
+    content: string;
+    language?: string;
+    title?: string;
+    url?: string;
+  };
 }
 
-export function AIMessage({ content, citations, timestamp = "2:34 PM" }: AIMessageProps) {
+export function AIMessage({ content, citations, timestamp = "2:34 PM", artifact }: AIMessageProps) {
   const handleCopy = () => {
-    navigator.clipboard.writeText(content.join('\n\n'));
+    const textToCopy = artifact ? artifact.content : content.join('\n\n');
+    navigator.clipboard.writeText(textToCopy);
   };
 
   return (
@@ -27,6 +36,17 @@ export function AIMessage({ content, citations, timestamp = "2:34 PM" }: AIMessa
             />
           ))}
         </div>
+
+        {/* Render artifact if present */}
+        {artifact && (
+          <Artifact
+            type={artifact.type}
+            content={artifact.content}
+            language={artifact.language}
+            title={artifact.title}
+            url={artifact.url}
+          />
+        )}
         
         {citations && citations.length > 0 && (
           <div className="flex flex-wrap gap-2">

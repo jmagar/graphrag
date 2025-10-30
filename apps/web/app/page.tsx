@@ -15,6 +15,17 @@ interface Message {
   citations?: Array<{ number: number; title: string }>;
   timestamp: string;
   isStreaming?: boolean;
+  artifact?: {
+    type: 'markdown' | 'code' | 'text' | 'json' | 'html';
+    content: string;
+    language?: string;
+    title?: string;
+    url?: string;
+  };
+  metadata?: {
+    url?: string;
+    scrapedContent?: string;
+  };
 }
 
 export default function GraphRAGPage() {
@@ -74,17 +85,27 @@ export default function GraphRAGPage() {
 
         const scrapeData = await scrapeResponse.json();
         
-        // Add scraped content as assistant message
+        // Add scraped content as an artifact
         const markdown = scrapeData.data?.markdown || scrapeData.data?.html || 'Content retrieved successfully';
         const scrapeMessage: Message = {
           id: (Date.now() + 0.5).toString(),
           role: 'assistant',
-          content: [`📄 **Scraped: ${content}**`, markdown],
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+          content: [`I've scraped the content from this URL. You can ask me questions about it!`],
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          artifact: {
+            type: 'markdown',
+            content: markdown,
+            title: 'Scraped Content',
+            url: content.trim()
+          },
+          metadata: {
+            url: content.trim(),
+            scrapedContent: markdown
+          }
         };
         setMessages(prev => [...prev, scrapeMessage]);
         setIsLoading(false);
-        return; // Don't send to Claude, just show scraped content
+        return;
       } catch (scrapeError: any) {
         console.error('Scrape error:', scrapeError);
         // Show error message
@@ -115,15 +136,27 @@ export default function GraphRAGPage() {
       // Create abort controller for this request
       abortControllerRef.current = new AbortController();
 
+      // Include scraped content in context for Claude
+      const contextMessage = messages
+        .filter(m => m.metadata?.scrapedContent)
+        .map(m => `[Previously scraped from ${m.metadata?.url}]:\n${m.metadata?.scrapedContent}`)
+        .join('\n\n');
+
+      const fullMessage = contextMessage 
+        ? `${contextMessage}\n\n---\n\nUser question: ${content}`
+        : content;
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          message: content,
-          history: messages.map(m => ({
-            role: m.role,
-            content: Array.isArray(m.content) ? m.content.join('\n') : m.content
-          }))
+          message: fullMessage,
+          history: messages
+            .filter(m => !m.metadata?.scrapedContent) // Don't include raw scraped content in history
+            .map(m => ({
+              role: m.role,
+              content: Array.isArray(m.content) ? m.content.join('\n') : m.content
+            }))
         }),
         signal: abortControllerRef.current.signal
       });
@@ -237,6 +270,7 @@ export default function GraphRAGPage() {
                   content={Array.isArray(message.content) ? message.content : [message.content]}
                   citations={message.citations}
                   timestamp={message.timestamp}
+                  artifact={message.artifact}
                 />
               ) : (
                 <UserMessage
