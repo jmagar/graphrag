@@ -42,6 +42,10 @@ export default function GraphRAGPage() {
     // Add current timestamp
     messageTimestampsRef.current.push(now);
 
+    // Detect if message is just a URL
+    const urlRegex = /^https?:\/\/.+$/i;
+    const isUrl = urlRegex.test(content.trim());
+
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -51,6 +55,50 @@ export default function GraphRAGPage() {
     };
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
+
+    // If it's a URL, scrape it first
+    if (isUrl) {
+      try {
+        const scrapeResponse = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            url: content.trim(),
+            formats: ['markdown', 'html']
+          })
+        });
+
+        if (!scrapeResponse.ok) {
+          throw new Error('Failed to scrape URL');
+        }
+
+        const scrapeData = await scrapeResponse.json();
+        
+        // Add scraped content as assistant message
+        const markdown = scrapeData.data?.markdown || scrapeData.data?.html || 'Content retrieved successfully';
+        const scrapeMessage: Message = {
+          id: (Date.now() + 0.5).toString(),
+          role: 'assistant',
+          content: [`📄 **Scraped: ${content}**`, markdown],
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        };
+        setMessages(prev => [...prev, scrapeMessage]);
+        setIsLoading(false);
+        return; // Don't send to Claude, just show scraped content
+      } catch (scrapeError: any) {
+        console.error('Scrape error:', scrapeError);
+        // Show error message
+        const errorMessage: Message = {
+          id: (Date.now() + 0.5).toString(),
+          role: 'assistant',
+          content: `❌ Failed to scrape URL: ${scrapeError.message}`,
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        setIsLoading(false);
+        return;
+      }
+    }
 
     // Create assistant message placeholder for streaming
     const assistantId = (Date.now() + 1).toString();
