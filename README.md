@@ -79,8 +79,8 @@ graphrag/
 # Install root dependencies
 npm install
 
-# Install frontend dependencies
-cd apps/frontend
+# Install web app dependencies
+cd apps/web
 npm install
 cd ../..
 
@@ -110,10 +110,10 @@ npm run dev
 
 **Option 2: Start Individually**
 
-*Frontend only:*
+*Web app only:*
 ```bash
-npm run dev:frontend
-# OR: cd apps/frontend && npm run dev
+npm run dev:web
+# OR: cd apps/web && npm run dev
 ```
 
 *Backend only:*
@@ -189,10 +189,10 @@ Backend API docs: http://localhost:8000/docs
 
 ## Development
 
-### Frontend
+### Web App
 
 ```bash
-cd apps/frontend
+cd apps/web
 npm run dev        # Development server
 npm run build      # Production build
 npm run lint       # Lint code
@@ -230,7 +230,7 @@ app/
     └── llm.py             # Ollama service
 ```
 
-### Frontend (`apps/frontend/`)
+### Web App (`apps/web/`)
 
 ```
 app/
@@ -277,9 +277,9 @@ TEI service should use a compatible embedding model. Current setup assumes 768-d
 - Install dependencies: `pip install -r requirements.txt`
 - Verify .env file exists in `apps/backend/`
 
-### Frontend can't connect to backend
+### Web app can't connect to backend
 - Check backend is running on port 8000
-- Verify `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/frontend/.env.local`
+- Verify `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local`
 - Check CORS settings in backend
 
 ### Crawl fails
