@@ -2,7 +2,7 @@
  * Utility functions for exporting chat messages to Markdown format
  */
 
-interface Message {
+interface ExportableMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string | string[];
@@ -13,7 +13,7 @@ interface Message {
 /**
  * Converts a single message to Markdown format
  */
-export function messageToMarkdown(message: Message): string {
+export function messageToMarkdown(message: ExportableMessage): string {
   const { role, content, timestamp, citations } = message;
 
   // Build header
@@ -40,7 +40,7 @@ export function messageToMarkdown(message: Message): string {
 /**
  * Converts an array of messages to a complete Markdown document
  */
-export function messagesToMarkdown(messages: Message[]): string {
+export function messagesToMarkdown(messages: ExportableMessage[]): string {
   const date = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -77,7 +77,7 @@ export function downloadMarkdown(content: string, filename: string = 'chat-expor
 /**
  * Exports messages to Markdown and triggers download
  */
-export function exportMessagesToMarkdown(messages: Message[]): void {
+export function exportMessagesToMarkdown(messages: ExportableMessage[]): void {
   const markdown = messagesToMarkdown(messages);
   const timestamp = new Date().toISOString().split('T')[0];
   const filename = `chat-export-${timestamp}.md`;

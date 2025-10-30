@@ -4,7 +4,7 @@ import { ConversationTabs } from './ConversationTabs';
 import { MobileMenu } from '../layout/MobileMenu';
 import { exportMessagesToMarkdown } from '@/lib/export-markdown';
 
-interface Message {
+interface ExportMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string | string[];
@@ -15,7 +15,7 @@ interface Message {
 interface ChatHeaderProps {
   onLeftMenuClick?: () => void;
   onRightMenuClick?: () => void;
-  messages?: Message[];
+  messages?: ExportMessage[];
 }
 
 export function ChatHeader({ onLeftMenuClick, onRightMenuClick, messages = [] }: ChatHeaderProps) {

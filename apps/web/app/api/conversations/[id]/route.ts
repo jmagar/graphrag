@@ -11,15 +11,16 @@ import { NextRequest, NextResponse } from 'next/server';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface RouteContext {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
-    const response = await fetch(`${API_BASE}/api/v1/conversations/${params.id}`);
+    const { id } = await context.params;
+    const response = await fetch(`${API_BASE}/api/v1/conversations/${id}`);
     const data = await response.json();
     
     return NextResponse.json(data, { status: response.status });
@@ -34,12 +35,13 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
     const body = await request.json();
+    const { id } = await context.params;
     
-    const response = await fetch(`${API_BASE}/api/v1/conversations/${params.id}`, {
+    const response = await fetch(`${API_BASE}/api/v1/conversations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -59,10 +61,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: RouteContext
+  context: RouteContext
 ) {
   try {
-    const response = await fetch(`${API_BASE}/api/v1/conversations/${params.id}`, {
+    const { id } = await context.params;
+    const response = await fetch(`${API_BASE}/api/v1/conversations/${id}`, {
       method: 'DELETE',
     });
     

@@ -11,6 +11,7 @@ import { ChatInput } from '@/components/input/ChatInput';
 import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { toast, Toaster } from 'sonner';
+import { useConversationStore } from '@/stores/conversationStore';
 
 // Content can be either text or a tool call, allowing inline rendering
 export type ContentSegment =
@@ -62,6 +63,14 @@ export default function GraphRAGPage() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messageTimestampsRef = useRef<number[]>([]);
   const isDesktop = useIsDesktop();
+  
+  // Conversation store for persistence
+  const { 
+    currentConversation, 
+    loadConversation, 
+    createConversation,
+    isLoading: storeLoading 
+  } = useConversationStore();
 
   // Real-time crawl progress polling with proper cleanup
   useEffect(() => {
@@ -154,6 +163,27 @@ export default function GraphRAGPage() {
       }
     };
   }, []);
+
+  // Load messages from current conversation
+  useEffect(() => {
+    if (currentConversation?.messages) {
+      // Convert backend messages to UI message format
+      const uiMessages: Message[] = currentConversation.messages.map(msg => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.created_at).toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit' 
+        }),
+        citations: msg.sources?.length ? msg.sources.map((s, i) => ({
+          number: i + 1,
+          title: s.payload?.metadata?.title || s.payload?.metadata?.sourceURL || 'Source'
+        })) : undefined
+      }));
+      setMessages(uiMessages);
+    }
+  }, [currentConversation]);
 
   const handleCommand = async (command: string, args: string) => {
     const userMessage: Message = {
@@ -486,6 +516,44 @@ export default function GraphRAGPage() {
       ));
     } catch (error) {
       console.error('Failed to cancel crawl:', error);
+    }
+  };
+
+  // Helper: Save message to backend (async, non-blocking)
+  const saveToBackend = async (userMessage: string, assistantResponse: string) => {
+    try {
+      let conversationId = currentConversation?.id;
+      
+      // Create conversation if it doesn't exist
+      if (!conversationId) {
+        const newConv = await createConversation(
+          userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : '')
+        );
+        conversationId = newConv.id;
+      }
+      
+      // Use the chat-rag endpoint to save both messages
+      const response = await fetch('/api/chat-rag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          use_rag: false, // We already got the response from Claude SDK
+          conversation_id: conversationId
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save message');
+      }
+      
+      // Reload conversation to get updated messages
+      if (conversationId) {
+        await loadConversation(conversationId);
+      }
+    } catch (error) {
+      console.error('Failed to save to backend:', error);
+      // Don't throw - saving is optional enhancement
     }
   };
 
@@ -822,6 +890,28 @@ export default function GraphRAGPage() {
       );
     } finally {
       abortControllerRef.current = null;
+      
+      // Save conversation to backend (non-blocking)
+      // Use a small delay to ensure state is updated
+      setTimeout(() => {
+        setMessages(currentMessages => {
+          const assistantMsg = currentMessages.find(m => m.id === assistantId);
+          if (assistantMsg) {
+            const assistantContent = assistantMsg.content;
+            const assistantText = Array.isArray(assistantContent)
+              ? assistantContent.map(seg => 
+                  typeof seg === 'string' ? seg : seg.type === 'text' ? seg.text : ''
+                ).join('')
+              : String(assistantContent);
+            
+            // Save to backend without blocking UI
+            if (assistantText.trim()) {
+              saveToBackend(content, assistantText).catch(console.error);
+            }
+          }
+          return currentMessages; // Don't modify state, just read it
+        });
+      }, 100);
     }
   };
 
@@ -844,7 +934,15 @@ export default function GraphRAGPage() {
         <ChatHeader
           onLeftMenuClick={() => setLeftDrawerOpen(true)}
           onRightMenuClick={() => setRightDrawerOpen(true)}
-          messages={messages}
+          messages={messages.map(m => ({
+            id: m.id,
+            role: m.role,
+            content: Array.isArray(m.content) 
+              ? m.content.map(c => typeof c === 'string' ? c : c.type === 'text' ? c.text : '')
+              : m.content,
+            timestamp: m.timestamp,
+            citations: m.citations
+          }))}
         />
         
         {/* Messages */}

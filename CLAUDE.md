@@ -227,6 +227,7 @@ This project uses **[uv](https://github.com/astral-sh/uv)** for fast, reliable P
 - **Setup**: Run `uv sync --dev` in `apps/api/` to install all dependencies
 
 **Key uv commands:**
+
 ```bash
 uv sync              # Install dependencies from pyproject.toml
 uv sync --dev        # Include dev dependencies (pytest, black, ruff, mypy)

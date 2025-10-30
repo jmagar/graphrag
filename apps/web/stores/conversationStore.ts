@@ -15,7 +15,7 @@ import { persist } from 'zustand/middleware';
 // Types
 // ============================================================================
 
-export interface Message {
+export interface ConversationMessage {
   id: string;
   conversation_id: string;
   role: 'user' | 'assistant' | 'system';
@@ -47,7 +47,7 @@ export interface Conversation {
 }
 
 export interface ConversationDetail extends Conversation {
-  messages: Message[];
+  messages: ConversationMessage[];
 }
 
 // ============================================================================
@@ -67,7 +67,7 @@ interface ConversationState {
   createConversation: (title: string, space?: string) => Promise<Conversation>;
   updateConversation: (id: string, data: { title?: string; tags?: string[] }) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
-  sendMessage: (content: string, useRag?: boolean, conversationId?: string) => Promise<Message>;
+  sendMessage: (content: string, useRag?: boolean, conversationId?: string) => Promise<ConversationMessage>;
   setCurrentConversation: (conversation: ConversationDetail | null) => void;
   clearError: () => void;
 }
