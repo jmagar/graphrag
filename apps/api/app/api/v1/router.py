@@ -3,7 +3,17 @@ API v1 router that combines all endpoint routers.
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import crawl, scrape, query, webhooks, map, search, extract, conversations, chat
+from app.api.v1.endpoints import (
+    crawl,
+    scrape,
+    query,
+    webhooks,
+    map,
+    search,
+    extract,
+    conversations,
+    chat,
+)
 
 api_router = APIRouter()
 

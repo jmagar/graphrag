@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
     # Shutdown: Close database connections
     await close_db()
 
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,

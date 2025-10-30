@@ -10,11 +10,17 @@ import { UserMessage } from '@/components/chat/UserMessage';
 import { ChatInput } from '@/components/input/ChatInput';
 import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
+import { toast, Toaster } from 'sonner';
+
+// Content can be either text or a tool call, allowing inline rendering
+export type ContentSegment =
+  | { type: 'text'; text: string }
+  | { type: 'tool'; command: string; args?: string; status?: 'running' | 'complete' | 'error' };
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
-  content: string | string[];
+  content: string | string[] | ContentSegment[];
   citations?: Array<{ number: number; title: string }>;
   timestamp: string;
   isStreaming?: boolean;
@@ -138,6 +144,16 @@ export default function GraphRAGPage() {
       intervals.clear();
     };
   }, [messages.filter(m => m.crawl?.status === 'active').map(m => m.crawl?.jobId).join(',')]);
+
+  // Cleanup: abort any in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCommand = async (command: string, args: string) => {
     const userMessage: Message = {
@@ -485,7 +501,10 @@ export default function GraphRAGPage() {
     
     // Check if user has sent 5 messages in the last minute
     if (messageTimestampsRef.current.length >= 5) {
-      alert('Rate limit: You can only send 5 messages per minute. Please wait.');
+      toast.error('Rate limit exceeded', {
+        description: 'You can only send 5 messages per minute. Please wait.',
+        duration: 4000,
+      });
       return;
     }
     
@@ -561,7 +580,7 @@ export default function GraphRAGPage() {
         const errorMessage: Message = {
           id: (Date.now() + 0.5).toString(),
           role: 'assistant',
-          content: `❌ Failed to scrape URL: ${scrapeError.message}`,
+          content: [`❌ Failed to scrape URL: ${scrapeError.message}`],
           timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -575,7 +594,7 @@ export default function GraphRAGPage() {
     const assistantMessage: Message = {
       id: assistantId,
       role: 'assistant',
-      content: '',
+      content: [], // Start with empty ContentSegment array
       timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       isStreaming: true,
       toolCalls: [] // Initialize empty tool calls array
@@ -590,7 +609,7 @@ export default function GraphRAGPage() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           message: content,
           sessionId // SDK handles conversation state
         }),
@@ -603,8 +622,9 @@ export default function GraphRAGPage() {
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      let accumulatedContent = '';
-      const toolsInUse = new Map<string, { name: string; input: string }>(); // Track tool calls by ID
+      const contentSegments: ContentSegment[] = []; // Build inline content
+      let currentTextSegment = ''; // Accumulate current text
+      const toolsInUse = new Map<string, { name: string; input: string; index: number }>(); // Track tool calls by ID
 
       if (!reader) {
         throw new Error('No response body');
@@ -645,86 +665,137 @@ export default function GraphRAGPage() {
             // ONLY use stream_event for live updates to avoid duplicates
             if (parsed.type === 'stream_event') {
               const event = parsed.event;
-              
-              // Tool use started
+
+              // Tool use started - insert inline
               if (event?.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
                 const toolId = event.content_block.id;
                 const toolName = event.content_block.name;
-                toolsInUse.set(toolId, { name: toolName, input: '' });
-                
-                // Update UI immediately to show tool is being used
-                setMessages(prev => 
-                  prev.map(m => m.id === assistantId 
-                    ? { 
-                        ...m, 
-                        toolCalls: Array.from(toolsInUse.values()).map(t => ({
-                          command: t.name,
-                          args: t.input
-                        }))
-                      }
+                const segmentIndex = contentSegments.length;
+                toolsInUse.set(toolId, { name: toolName, input: '', index: segmentIndex });
+
+                // Flush any accumulated text before tool
+                if (currentTextSegment) {
+                  contentSegments.push({ type: 'text', text: currentTextSegment });
+                  currentTextSegment = '';
+                }
+
+                // Add tool call inline
+                contentSegments.push({
+                  type: 'tool',
+                  command: toolName,
+                  args: '',
+                  status: 'running'
+                });
+
+                // Update UI
+                setMessages(prev =>
+                  prev.map(m => m.id === assistantId
+                    ? { ...m, content: [...contentSegments] }
                     : m
                   )
                 );
               }
-              
+
               // Tool input streaming (parameters)
               if (event?.type === 'content_block_delta' && event.delta?.type === 'input_json_delta') {
-                const toolId = event.index; // Content block index
+                const contentBlockIndex = event.index;
                 const partialJson = event.delta.partial_json;
-                
-                // Accumulate input JSON
-                const toolIds = Array.from(toolsInUse.keys());
-                if (toolIds[toolId]) {
-                  const tool = toolsInUse.get(toolIds[toolId]);
-                  if (tool) {
+
+                // Find tool by content block index
+                for (const [toolId, tool] of toolsInUse.entries()) {
+                  // Match by checking if this is the right content block
+                  const toolIds = Array.from(toolsInUse.keys());
+                  if (toolIds.indexOf(toolId) === contentBlockIndex) {
                     tool.input += partialJson;
-                    
-                    // Try to parse and format args nicely
+
+                    // Try to parse and update tool segment
                     try {
-                      const parsed = JSON.parse(tool.input);
-                      const argsStr = Object.entries(parsed)
+                      const parsedArgs = JSON.parse(tool.input);
+                      const argsStr = Object.entries(parsedArgs)
                         .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
                         .join(', ');
-                      
-                      setMessages(prev => 
-                        prev.map(m => m.id === assistantId 
-                          ? { 
-                              ...m, 
-                              toolCalls: Array.from(toolsInUse.values()).map(t => ({
-                                command: t.name,
-                                args: t.name === tool.name ? argsStr : t.input
-                              }))
-                            }
-                          : m
-                        )
-                      );
+
+                      // Update the tool segment inline
+                      if (contentSegments[tool.index]?.type === 'tool') {
+                        contentSegments[tool.index] = {
+                          type: 'tool',
+                          command: tool.name,
+                          args: argsStr,
+                          status: 'running'
+                        };
+
+                        setMessages(prev =>
+                          prev.map(m => m.id === assistantId
+                            ? { ...m, content: [...contentSegments] }
+                            : m
+                          )
+                        );
+                      }
                     } catch {
                       // JSON not complete yet, keep accumulating
                     }
+                    break;
                   }
                 }
               }
-              
-              // Streaming text response
+
+              // Tool completed
+              if (event?.type === 'content_block_stop') {
+                const contentBlockIndex = event.index;
+
+                // Mark tool as complete
+                for (const [toolId, tool] of toolsInUse.entries()) {
+                  const toolIds = Array.from(toolsInUse.keys());
+                  if (toolIds.indexOf(toolId) === contentBlockIndex) {
+                    if (contentSegments[tool.index]?.type === 'tool') {
+                      contentSegments[tool.index] = {
+                        ...(contentSegments[tool.index] as { type: 'tool'; command: string; args?: string }),
+                        status: 'complete'
+                      };
+
+                      setMessages(prev =>
+                        prev.map(m => m.id === assistantId
+                          ? { ...m, content: [...contentSegments] }
+                          : m
+                        )
+                      );
+                    }
+                    break;
+                  }
+                }
+              }
+
+              // Streaming text response - accumulate and add inline
               if (event?.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-                accumulatedContent += event.delta.text;
-                setMessages(prev => 
-                  prev.map(m => m.id === assistantId 
-                    ? { ...m, content: accumulatedContent }
+                currentTextSegment += event.delta.text;
+
+                // Update the last text segment or add new one
+                const lastSegment = contentSegments[contentSegments.length - 1];
+                if (lastSegment?.type === 'text') {
+                  lastSegment.text = currentTextSegment;
+                } else {
+                  contentSegments.push({ type: 'text', text: currentTextSegment });
+                }
+
+                setMessages(prev =>
+                  prev.map(m => m.id === assistantId
+                    ? { ...m, content: [...contentSegments] }
                     : m
                   )
                 );
               }
             } else if (parsed.type === 'result') {
-              // Final result
-              if (parsed.subtype === 'success' && parsed.result) {
-                setMessages(prev => 
-                  prev.map(m => m.id === assistantId 
-                    ? { ...m, content: accumulatedContent || parsed.result, isStreaming: false }
-                    : m
-                  )
-                );
+              // Final result - flush any remaining text
+              if (currentTextSegment && !contentSegments.some(s => s.type === 'text' && s.text === currentTextSegment)) {
+                contentSegments.push({ type: 'text', text: currentTextSegment });
               }
+
+              setMessages(prev =>
+                prev.map(m => m.id === assistantId
+                  ? { ...m, content: contentSegments.length > 0 ? contentSegments : [{ type: 'text', text: parsed.result || '' }], isStreaming: false }
+                  : m
+                )
+              );
               setIsLoading(false);
             } else if (parsed.type === 'error') {
               throw new Error(parsed.error || 'Unknown error');
@@ -737,14 +808,14 @@ export default function GraphRAGPage() {
     } catch (error: any) {
       console.error('Chat error:', error);
       setIsLoading(false);
-      
+
       // Update assistant message with error
-      setMessages(prev => 
-        prev.map(m => m.id === assistantId 
-          ? { 
-              ...m, 
-              content: `Error: ${error.message || 'Failed to get response'}`,
-              isStreaming: false 
+      setMessages(prev =>
+        prev.map(m => m.id === assistantId
+          ? {
+              ...m,
+              content: [{ type: 'text' as const, text: `Error: ${error.message || 'Failed to get response'}` }],
+              isStreaming: false
             }
           : m
         )
@@ -821,6 +892,9 @@ export default function GraphRAGPage() {
       >
         <RightSidebar />
       </SidebarDrawer>
+      
+      {/* Toast Notifications */}
+      <Toaster position="top-right" richColors />
     </div>
   );
 }

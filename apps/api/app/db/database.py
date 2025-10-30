@@ -6,6 +6,7 @@ Provides:
 - Session management
 - Database initialization
 """
+
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.core.config import settings
@@ -32,7 +33,7 @@ async_session_factory = async_sessionmaker(
 async def init_db() -> None:
     """
     Initialize database by creating all tables.
-    
+
     Should be called on application startup.
     """
     async with engine.begin() as conn:
@@ -42,13 +43,13 @@ async def init_db() -> None:
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Get database session for dependency injection.
-    
+
     Usage in FastAPI:
         @router.get("/")
         async def endpoint(db: AsyncSession = Depends(get_session)):
             # Use db session
             pass
-    
+
     Yields:
         AsyncSession: Database session
     """
@@ -62,7 +63,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def close_db() -> None:
     """
     Close database connections.
-    
+
     Should be called on application shutdown.
     """
     await engine.dispose()

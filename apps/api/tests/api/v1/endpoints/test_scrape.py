@@ -71,23 +71,24 @@ class TestScrapeRequestValidation:
         assert "bad1" in error_detail
         assert "bad2" in error_detail
 
-    def test_default_formats(self, client):
+    def test_default_formats(self, client, mock_firecrawl_service):
         """Test that default formats are markdown and html."""
-        # This will pass when we can inject a mock service
-        with patch("app.api.v1.endpoints.scrape.get_firecrawl_service") as mock_get:
-            mock_service = MagicMock(spec=FirecrawlService)
-            mock_service.scrape_url = AsyncMock(
-                return_value={"success": True, "data": {}}
-            )
-            mock_get.return_value = mock_service
-            
+        from app.api.v1.endpoints.scrape import get_firecrawl_service
+
+        mock_firecrawl_service.scrape_url.return_value = {"success": True, "data": {}}
+
+        app.dependency_overrides[get_firecrawl_service] = lambda: mock_firecrawl_service
+
+        try:
             response = client.post(
                 "/api/v1/scrape/", json={"url": "https://example.com"}
             )
-            
+
             # Verify the service was called with default formats
-            call_args = mock_service.scrape_url.call_args
-            assert call_args[1]["formats"] == ["markdown", "html"]
+            call_args = mock_firecrawl_service.scrape_url.call_args
+            assert call_args[0][1]["formats"] == ["markdown", "html"]
+        finally:
+            app.dependency_overrides.clear()
 
 
 class TestScrapeDependencyInjection:
@@ -135,8 +136,9 @@ class TestScrapeDependencyInjection:
             )
 
             # Verify service was called with correct parameters
+            # Note: Pydantic HttpUrl normalizes URLs (adds trailing slash)
             mock_firecrawl_service.scrape_url.assert_called_once_with(
-                "https://example.com", {"formats": ["markdown", "html"]}
+                "https://example.com/", {"formats": ["markdown", "html"]}
             )
         finally:
             app.dependency_overrides.clear()
@@ -282,9 +284,10 @@ class TestScrapeOptionsConstruction:
             )
 
             # Verify options dict includes formats
+            # call_args is (args, kwargs), we want args[1] which is the options dict
             call_args = mock_firecrawl_service.scrape_url.call_args
-            assert "formats" in call_args[1]
-            assert call_args[1]["formats"] == ["markdown"]
+            assert "formats" in call_args[0][1]
+            assert call_args[0][1]["formats"] == ["markdown"]
         finally:
             app.dependency_overrides.clear()
 
@@ -301,6 +304,6 @@ class TestScrapeOptionsConstruction:
 
             # Default formats should be included
             call_args = mock_firecrawl_service.scrape_url.call_args
-            assert call_args[1]["formats"] == ["markdown", "html"]
+            assert call_args[0][1]["formats"] == ["markdown", "html"]
         finally:
             app.dependency_overrides.clear()

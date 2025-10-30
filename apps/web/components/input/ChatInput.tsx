@@ -198,8 +198,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
   };
 
   return (
-    <div className="relative pointer-events-none">
-      <div className="absolute bottom-0 left-0 right-0 pb-4 md:pb-6 pointer-events-auto">
+    <div className="fixed bottom-0 left-0 right-0 z-10 pointer-events-none">
+      <div className="pb-4 md:pb-6 pointer-events-auto bg-gradient-to-t from-zinc-50 via-zinc-50 to-transparent dark:from-zinc-900 dark:via-zinc-900 dark:to-transparent pt-8">
         <div className="max-w-3xl mx-auto px-3 md:px-6">
           <div className="relative">
             {/* Dropdowns */}
