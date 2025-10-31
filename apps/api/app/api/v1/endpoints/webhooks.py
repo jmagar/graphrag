@@ -4,13 +4,9 @@ Webhook endpoints for receiving callbacks from Firecrawl.
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from typing import Dict, Any
-from app.services.embeddings import EmbeddingsService
-from app.services.vector_db import VectorDBService
-import hashlib
+from app.services.document_processor import process_and_store_document, process_and_store_documents_batch
 
 router = APIRouter()
-embeddings_service = EmbeddingsService()
-vector_db_service = VectorDBService()
 
 
 async def process_crawled_page(page_data: Dict[str, Any]):
@@ -20,34 +16,16 @@ async def process_crawled_page(page_data: Dict[str, Any]):
     Args:
         page_data: Page data from Firecrawl webhook
     """
-    try:
-        # Extract content and metadata
-        content = page_data.get("markdown", "")
-        metadata = page_data.get("metadata", {})
-        source_url = metadata.get("sourceURL", "")
-
-        if not content or not source_url:
-            print(f"Skipping page with no content or URL: {page_data}")
-            return
-
-        # Generate a unique ID for this document
-        doc_id = hashlib.md5(source_url.encode()).hexdigest()
-
-        # Generate embedding
-        embedding = await embeddings_service.generate_embedding(content)
-
-        # Store in vector database
-        await vector_db_service.upsert_document(
-            doc_id=doc_id,
-            embedding=embedding,
-            content=content,
-            metadata=metadata,
-        )
-
-        print(f"✓ Processed and stored: {source_url}")
-
-    except Exception as e:
-        print(f"✗ Failed to process page: {str(e)}")
+    content = page_data.get("markdown", "")
+    metadata = page_data.get("metadata", {})
+    source_url = metadata.get("sourceURL", "")
+    
+    await process_and_store_document(
+        content=content,
+        source_url=source_url,
+        metadata=metadata,
+        source_type="crawl"
+    )
 
 
 @router.post("/firecrawl")
@@ -77,14 +55,29 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
 
         elif event_type == "crawl.completed":
             crawl_id = payload.get("id")
-            total_pages = len(payload.get("data", []))
+            data = payload.get("data", [])
+            total_pages = len(data)
             print(f"✓ Crawl completed: {crawl_id} ({total_pages} pages)")
 
-            # Process all pages if they weren't sent individually
-            data = payload.get("data", [])
+            # Process all pages in BATCH if they weren't sent individually
             if data:
+                documents = []
                 for page_data in data:
-                    background_tasks.add_task(process_crawled_page, page_data)
+                    content = page_data.get("markdown", "")
+                    metadata = page_data.get("metadata", {})
+                    source_url = metadata.get("sourceURL", "")
+                    
+                    if content and source_url:
+                        documents.append({
+                            "content": content,
+                            "source_url": source_url,
+                            "metadata": metadata,
+                            "source_type": "crawl"
+                        })
+                
+                # ONE background task for ALL pages (batch processing)
+                if documents:
+                    background_tasks.add_task(process_and_store_documents_batch, documents)
 
             return {"status": "completed", "pages_processed": total_pages}
 

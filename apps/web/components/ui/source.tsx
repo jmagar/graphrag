@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import {
   HoverCard,
   HoverCardContent,
@@ -68,7 +69,7 @@ export function SourceTrigger({
         )}
       >
         {showFavicon && (
-          <img
+          <Image
             src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(
               href
             )}`}
@@ -106,7 +107,7 @@ export function SourceContent({
         className="flex flex-col gap-2 p-3"
       >
         <div className="flex items-center gap-1.5">
-          <img
+          <Image
             src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(
               href
             )}`}

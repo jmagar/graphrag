@@ -39,7 +39,7 @@ describe('MessageActions', () => {
   it('renders copy button', () => {
     render(<MessageActions {...defaultProps} onCopy={jest.fn()} />);
     
-    const copyButton = screen.getByTitle('Copy');
+    const copyButton = screen.getByTitle('Copy message');
     expect(copyButton).toBeInTheDocument();
   });
 
@@ -47,7 +47,7 @@ describe('MessageActions', () => {
     const handleCopy = jest.fn();
     render(<MessageActions {...defaultProps} onCopy={handleCopy} />);
     
-    const copyButton = screen.getByTitle('Copy');
+    const copyButton = screen.getByTitle('Copy message');
     copyButton.click();
     
     expect(handleCopy).toHaveBeenCalledTimes(1);
@@ -56,14 +56,14 @@ describe('MessageActions', () => {
   it('renders regenerate button when onRegenerate provided', () => {
     render(<MessageActions {...defaultProps} onRegenerate={jest.fn()} />);
     
-    const regenerateButton = screen.getByTitle('Regenerate');
+    const regenerateButton = screen.getByTitle('Regenerate response');
     expect(regenerateButton).toBeInTheDocument();
   });
 
   it('does not render regenerate button when onRegenerate not provided', () => {
     render(<MessageActions {...defaultProps} />);
     
-    const regenerateButton = screen.queryByTitle('Regenerate');
+    const regenerateButton = screen.queryByTitle('Regenerate response');
     expect(regenerateButton).not.toBeInTheDocument();
   });
 
@@ -71,7 +71,7 @@ describe('MessageActions', () => {
     const handleRegenerate = jest.fn();
     render(<MessageActions {...defaultProps} onRegenerate={handleRegenerate} />);
     
-    const regenerateButton = screen.getByTitle('Regenerate');
+    const regenerateButton = screen.getByTitle('Regenerate response');
     regenerateButton.click();
     
     expect(handleRegenerate).toHaveBeenCalledTimes(1);

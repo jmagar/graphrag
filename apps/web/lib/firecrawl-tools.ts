@@ -203,11 +203,11 @@ export const firecrawlServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const response = await axios.post(`${backendUrl}/api/v1/crawl`, {
+          const response = await axios.post(`${backendUrl}/api/v1/crawl/`, {
             url: args.url,
             maxDepth: Math.min(Math.max(args.max_depth, 1), 5),
             limit: Math.min(Math.max(args.max_pages, 1), 100)
-          });
+          }, { timeout: 30000 });
           
           const jobId = response.data.id || response.data.jobId;
           
@@ -247,7 +247,7 @@ export const firecrawlServer = createSdkMcpServer({
       },
       async (args) => {
         try {
-          const response = await axios.get(`${backendUrl}/api/v1/crawl/${args.job_id}`);
+          const response = await axios.get(`${backendUrl}/api/v1/crawl/${args.job_id}/`, { timeout: 10000 });
           
           const status = response.data;
           const progress = status.total > 0 
@@ -298,7 +298,7 @@ export const firecrawlServer = createSdkMcpServer({
             limit: Math.min(args.limit, 10),
             score_threshold: args.score_threshold,
             use_llm: false // Just return raw results, Claude will interpret
-          });
+          }, { timeout: 30000 });
           
           const results = response.data.results || [];
           

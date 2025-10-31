@@ -52,4 +52,74 @@ describe('Citation', () => {
     
     expect(screen.getByText(longTitle)).toBeInTheDocument();
   });
+
+  it('renders tooltip with url and preview', () => {
+    const { container } = render(
+      <Citation 
+        number={1} 
+        title="Test Article" 
+        url="https://example.com"
+        preview="This is a preview of the article content"
+      />
+    );
+    
+    // Verify tooltip container exists
+    const tooltip = container.querySelector('.group-hover\\:opacity-100');
+    expect(tooltip).toBeInTheDocument();
+    
+    // Verify tooltip contains the URL
+    expect(screen.getByText('https://example.com')).toBeInTheDocument();
+    
+    // Verify tooltip contains the preview
+    expect(screen.getByText('This is a preview of the article content')).toBeInTheDocument();
+  });
+
+  it('includes url in aria-label when provided', () => {
+    render(
+      <Citation 
+        number={1} 
+        title="Test" 
+        url="https://example.com"
+      />
+    );
+    
+    const button = screen.getByLabelText(/Citation 1: Test - https:\/\/example\.com/);
+    expect(button).toBeInTheDocument();
+  });
+
+  it('does not render tooltip when no url or preview', () => {
+    const { container } = render(<Citation number={1} title="Test" />);
+    
+    // Tooltip should not exist without url or preview
+    const tooltip = container.querySelector('.group-hover\\:opacity-100');
+    expect(tooltip).not.toBeInTheDocument();
+  });
+
+  it('renders tooltip with only url', () => {
+    const { container } = render(
+      <Citation 
+        number={1} 
+        title="Test" 
+        url="https://example.com"
+      />
+    );
+    
+    const tooltip = container.querySelector('.group-hover\\:opacity-100');
+    expect(tooltip).toBeInTheDocument();
+    expect(screen.getByText('https://example.com')).toBeInTheDocument();
+  });
+
+  it('renders tooltip with only preview', () => {
+    const { container } = render(
+      <Citation 
+        number={1} 
+        title="Test" 
+        preview="Just a preview"
+      />
+    );
+    
+    const tooltip = container.querySelector('.group-hover\\:opacity-100');
+    expect(tooltip).toBeInTheDocument();
+    expect(screen.getByText('Just a preview')).toBeInTheDocument();
+  });
 });

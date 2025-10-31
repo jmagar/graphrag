@@ -2,6 +2,13 @@
 
 import { useState } from 'react';
 
+// Color class mappings for Tailwind JIT compilation
+const colorClasses = {
+  blue: 'text-blue-600 dark:text-blue-400',
+  purple: 'text-purple-600 dark:text-purple-400',
+  green: 'text-green-600 dark:text-green-400'
+} as const;
+
 interface Tool {
   name: string;
   description: string;
@@ -80,7 +87,7 @@ const categoryInfo = {
   web: {
     name: 'Web Scraping',
     icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
       </svg>
     ),
@@ -89,7 +96,7 @@ const categoryInfo = {
   crawl: {
     name: 'Website Crawling',
     icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
       </svg>
     ),
@@ -98,7 +105,7 @@ const categoryInfo = {
   search: {
     name: 'Search',
     icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
       </svg>
     ),
@@ -129,6 +136,7 @@ export function ToolsInfo() {
       {/* Category Filter */}
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap gap-2">
         <button
+          type="button"
           onClick={() => setSelectedCategory(null)}
           className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
             selectedCategory === null
@@ -143,6 +151,7 @@ export function ToolsInfo() {
           const count = AVAILABLE_TOOLS.filter(t => t.category === cat).length;
           return (
             <button
+              type="button"
               key={cat}
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
@@ -170,10 +179,11 @@ export function ToolsInfo() {
               className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden"
             >
               <button
+                type="button"
                 onClick={() => setExpandedTool(isExpanded ? null : tool.name)}
                 className="w-full px-3 py-2.5 flex items-start gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors text-left"
               >
-                <div className={`flex-shrink-0 mt-0.5 text-${info.color}-600 dark:text-${info.color}-400`}>
+                <div className={`flex-shrink-0 mt-0.5 ${colorClasses[info.color as keyof typeof colorClasses]}`}>
                   {info.icon}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -182,6 +192,7 @@ export function ToolsInfo() {
                       {tool.name}
                     </code>
                     <svg
+                      aria-hidden="true"
                       className={`w-4 h-4 flex-shrink-0 text-zinc-400 transition-transform ${
                         isExpanded ? 'rotate-180' : ''
                       }`}
@@ -229,9 +240,14 @@ export function ToolsInfo() {
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
-        <p className="text-xs text-zinc-600 dark:text-zinc-400">
-          💡 The AI will automatically choose and use these tools based on your requests
-        </p>
+        <div className="flex items-start gap-2">
+          <svg className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p className="text-xs text-zinc-600 dark:text-zinc-400">
+            The AI will automatically choose and use these tools based on your requests
+          </p>
+        </div>
       </div>
     </div>
   );

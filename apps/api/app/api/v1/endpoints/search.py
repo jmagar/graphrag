@@ -2,10 +2,11 @@
 Search endpoint for web search using Firecrawl v2 API.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional, List
 from app.services.firecrawl import FirecrawlService
+from app.services.document_processor import process_and_store_documents_batch
 
 router = APIRouter()
 firecrawl_service = FirecrawlService()
@@ -36,11 +37,14 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/", response_model=SearchResponse)
-async def search_web(request: SearchRequest):
+async def search_web(
+    request: SearchRequest,
+    background_tasks: BackgroundTasks
+):
     """
     Search the web and get full page content.
 
-    Returns search results with full content for each page.
+    All search results are automatically stored in the knowledge base via background tasks.
     """
     try:
         options = {"limit": request.limit, "formats": request.formats}
@@ -48,6 +52,26 @@ async def search_web(request: SearchRequest):
         result = await firecrawl_service.search_web(request.query, options)
 
         raw_results = result.get("data", [])
+        
+        # Prepare batch of documents to store
+        documents = []
+        for item in raw_results:
+            content = item.get("markdown", item.get("html", ""))
+            url = item.get("url", "")
+            
+            if content and url:
+                documents.append({
+                    "content": content,
+                    "source_url": url,
+                    "metadata": item.get("metadata", {}),
+                    "source_type": "search"
+                })
+        
+        # Store ALL documents in ONE background task (batch processing)
+        if documents:
+            background_tasks.add_task(process_and_store_documents_batch, documents)
+        
+        # Format response
         results = [
             {
                 "url": r.get("url", ""),

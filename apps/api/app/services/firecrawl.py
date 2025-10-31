@@ -122,14 +122,19 @@ class FirecrawlService:
             return cast(Dict[str, Any], response.json())
 
     async def extract_data(
-        self, url: str, schema: Dict[str, Any], options: Dict[str, Any] | None = None
+        self, urls: list[str], schema: Dict[str, Any], options: Dict[str, Any] | None = None
     ) -> Dict[str, Any]:
         """
-        Extract structured data from a webpage.
+        Extract structured data from webpages.
 
         POST /v2/extract
+
+        Args:
+            urls: List of URLs to extract from (Firecrawl v2 API expects array)
+            schema: JSON schema describing desired structured output
+            options: Additional options including scrapeOptions
         """
-        payload = {"url": url, "schema": schema}
+        payload = {"urls": urls, "schema": schema}
         if options:
             payload.update(options)
 

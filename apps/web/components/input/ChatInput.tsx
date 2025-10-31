@@ -1,45 +1,58 @@
 "use client";
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useState, useEffect, KeyboardEvent } from 'react';
 import { CommandsDropdown } from './CommandsDropdown';
 import { MentionDropdown } from './MentionDropdown';
 import { InputFooter } from './InputFooter';
+import { 
+  PromptInput, 
+  PromptInputTextarea, 
+  PromptInputActions, 
+  PromptInputAction 
+} from '@/components/ui/prompt-input';
+import { Button } from '@/components/ui/button';
+import { Paperclip, Sparkles, Send } from 'lucide-react';
+
+/**
+ * ChatInput - Migrated to prompt-kit PromptInput (2025-10-30)
+ * 
+ * Benefits:
+ * - Auto-resize textarea built-in
+ * - Better keyboard handling
+ * - Loading states
+ * - Tooltip support for actions
+ * - Accessibility improvements
+ * 
+ * Preserved Features:
+ * - Command dropdown (/)
+ * - Mention dropdown (@)
+ * - Cmd+K focus shortcut
+ * - Enter to send, Shift+Enter for newline
+ * - Custom attach and enhance buttons
+ */
 
 interface ChatInputProps {
   onSend: (message: string) => void;
+  isLoading?: boolean;
 }
 
-export function ChatInput({ onSend }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading = false }: ChatInputProps) {
   const [value, setValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [showMentions, setShowMentions] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [filteredCommands, setFilteredCommands] = useState<string[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // All available commands
   const allCommands = ['/scrape', '/crawl', '/map', '/search', '/extract'];
 
-  // Auto-resize textarea
-  const adjustTextareaHeight = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = '36px';
-      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-    }
-  };
-
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [value]);
-
-  // Handle input changes
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
+  // Handle input changes for command/mention detection
+  const handleValueChange = (newValue: string) => {
     setValue(newValue);
 
-    const cursorPosition = e.target.selectionStart;
+    // Get cursor position (we'll use end of string as approximation)
+    const cursorPosition = newValue.length;
     const textBeforeCursor = newValue.substring(0, cursorPosition);
     
     // Check for / command
@@ -75,7 +88,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
     }
   };
 
-  // Handle keyboard shortcuts
+  // Handle keyboard shortcuts in textarea
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Escape key closes dropdowns
     if (e.key === 'Escape') {
@@ -111,22 +124,17 @@ export function ChatInput({ onSend }: ChatInputProps) {
         }
         return;
       } else if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
-        // Type a letter to jump to closest matching command in filtered list
+        // Type a letter to jump to closest matching command
         e.preventDefault();
         const letter = e.key.toLowerCase();
         
-        // Search in command names (without the slash)
         const commandNames = commandsToUse.map(cmd => cmd.substring(1));
-        
-        // Find first command starting with this letter
         let foundIndex = commandNames.findIndex(cmd => cmd.startsWith(letter));
         
-        // If no exact start match, find command containing the letter
         if (foundIndex === -1) {
           foundIndex = commandNames.findIndex(cmd => cmd.includes(letter));
         }
         
-        // If found, jump to it
         if (foundIndex !== -1) {
           setSelectedCommandIndex(foundIndex);
         }
@@ -135,31 +143,21 @@ export function ChatInput({ onSend }: ChatInputProps) {
     }
 
     // Mention dropdown navigation
-    if (showMentions) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        // TODO: Add mention navigation when needed
-        return;
-      } else if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        // TODO: Select mention
-        return;
-      }
-    }
-
-    // Enter to send (Shift+Enter for new line)
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (showMentions && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || (e.key === 'Enter' && !e.shiftKey))) {
       e.preventDefault();
-      handleSend();
+      // TODO: Add mention navigation when needed
+      return;
     }
   };
 
-  // Global ⌘+K shortcut
+  // Global Cmd+K shortcut
   useEffect(() => {
     const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        textareaRef.current?.focus();
+        // Focus will be handled by PromptInput's textareaRef
+        const textarea = document.querySelector('textarea[placeholder="Ask me anything..."]') as HTMLTextAreaElement;
+        textarea?.focus();
       }
     };
 
@@ -168,7 +166,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
   }, []);
 
   const handleSend = () => {
-    if (!value.trim()) return;
+    if (!value.trim() || isLoading) return;
     onSend(value);
     setValue('');
     setShowCommands(false);
@@ -176,25 +174,17 @@ export function ChatInput({ onSend }: ChatInputProps) {
   };
 
   const handleCommandSelect = (command: string) => {
-    const cursorPosition = textareaRef.current?.selectionStart || 0;
-    const textBeforeCursor = value.substring(0, cursorPosition);
-    const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
-    
-    const newValue = value.substring(0, lastSlashIndex) + command + ' ' + value.substring(cursorPosition);
+    const lastSlashIndex = value.lastIndexOf('/');
+    const newValue = value.substring(0, lastSlashIndex) + command + ' ';
     setValue(newValue);
     setShowCommands(false);
-    textareaRef.current?.focus();
   };
 
   const handleMentionSelect = (source: string) => {
-    const cursorPosition = textareaRef.current?.selectionStart || 0;
-    const textBeforeCursor = value.substring(0, cursorPosition);
-    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-    
-    const newValue = value.substring(0, lastAtIndex) + `@${source} ` + value.substring(cursorPosition);
+    const lastAtIndex = value.lastIndexOf('@');
+    const newValue = value.substring(0, lastAtIndex) + `@${source} `;
     setValue(newValue);
     setShowMentions(false);
-    textareaRef.current?.focus();
   };
 
   return (
@@ -213,57 +203,72 @@ export function ChatInput({ onSend }: ChatInputProps) {
               />
             )}
             
-            {/* Input Field */}
-            <div className="relative flex items-end gap-1.5 md:gap-2 p-2 md:p-2.5 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 focus-within:border-blue-500 dark:focus-within:border-blue-500 focus-within:shadow-lg focus-within:shadow-blue-500/10 dark:focus-within:shadow-blue-500/20 rounded-xl transition-all shadow-md dark:shadow-lg">
-              {/* Attach button - hidden on small mobile */}
-              <div className="hidden sm:flex items-center pb-0.5">
-                <button
-                  className="p-2 md:p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-all active:scale-95"
-                  title="Attach file"
-                >
-                  <svg className="w-5 h-5 md:w-4 md:h-4 text-zinc-500 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                  </svg>
-                </button>
+            {/* Prompt Input with Actions */}
+            <PromptInput
+              value={value}
+              onValueChange={handleValueChange}
+              onSubmit={handleSend}
+              isLoading={isLoading}
+              className="shadow-lg border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600 focus-within:border-blue-500 dark:focus-within:border-blue-500 focus-within:shadow-xl focus-within:shadow-blue-500/10 dark:focus-within:shadow-blue-500/20"
+            >
+              <div className="flex items-end gap-2 w-full">
+                {/* Attach button - hidden on small mobile */}
+                <div className="hidden sm:flex items-center pb-1">
+                  <PromptInputAction tooltip="Attach file" side="top">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="h-8 w-8 p-0 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      disabled={isLoading}
+                    >
+                      <Paperclip className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
+                    </Button>
+                  </PromptInputAction>
+                </div>
+
+                {/* Textarea */}
+                <div className="flex-1">
+                  <PromptInputTextarea
+                    placeholder="Ask me anything..."
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isLoading}
+                    className="min-h-[44px] max-h-[200px] text-base md:text-sm"
+                  />
+                </div>
+
+                {/* Actions */}
+                <PromptInputActions className="pb-1">
+                  {/* Enhance button - hidden on mobile */}
+                  <div className="hidden md:block">
+                    <PromptInputAction tooltip="Enhance prompt with AI" side="top">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="h-8 w-8 p-0 hover:bg-purple-50 dark:hover:bg-purple-500/10"
+                        disabled={isLoading}
+                      >
+                        <Sparkles className="h-4 w-4 text-purple-500 dark:text-purple-400" />
+                      </Button>
+                    </PromptInputAction>
+                  </div>
+
+                  {/* Send button */}
+                  <Button
+                    onClick={handleSend}
+                    disabled={!value.trim() || isLoading}
+                    size="sm"
+                    aria-label="Send message"
+                    className="h-9 w-9 p-0 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-800 dark:disabled:to-zinc-800 shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/50"
+                  >
+                    <Send className="h-4 w-4 text-white" aria-hidden="true" />
+                  </Button>
+                </PromptInputActions>
               </div>
-              
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                placeholder="Ask me anything..."
-                value={value}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setTimeout(() => setIsFocused(false), 150)}
-                className="flex-1 bg-transparent px-2 py-2 md:py-1.5 text-base md:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none resize-none max-h-32 md:max-h-[200px]"
-                style={{ minHeight: '40px' }}
-              />
-              
-              <div className="flex items-center gap-1 pb-0.5">
-                {/* Enhance button - hidden on mobile */}
-                <button
-                  className="hidden md:block p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg transition-all active:scale-95 group"
-                  title="Enhance prompt with AI"
-                >
-                  <svg className="w-4 h-4 text-purple-500 dark:text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={handleSend}
-                  disabled={!value.trim()}
-                  className="p-2.5 md:p-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-800 dark:disabled:to-zinc-800 disabled:cursor-not-allowed rounded-lg transition-all shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/50 active:scale-95 disabled:shadow-none"
-                >
-                  <svg className="w-5 h-5 md:w-4 md:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
+            </PromptInput>
             
-            {/* Input Footer - hidden on mobile to save space */}
+            {/* Input Footer - hidden on mobile */}
             <div className="hidden md:flex items-center justify-between mt-2 px-1">
               <InputFooter isFocused={isFocused} />
             </div>

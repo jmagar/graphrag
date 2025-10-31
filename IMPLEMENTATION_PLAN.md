@@ -228,18 +228,31 @@ CREATE TABLE conversation_tags (
 ## 📦 New Dependencies
 
 ### Backend (apps/api)
-```toml
-# Add to pyproject.toml
-[tool.poetry.dependencies]
-spacy = "^3.7.0"
-neo4j = "^5.14.0"
-alembic = "^1.12.0"
-sqlalchemy = "^2.0.0"
+```bash
+# Add to pyproject.toml using uv
+cd apps/api
+uv add spacy neo4j alembic sqlalchemy
+uv add --dev pytest-cov pytest-mock respx
+```
 
-[tool.poetry.group.dev.dependencies]
-pytest-cov = "^4.1.0"
-pytest-mock = "^3.12.0"
-respx = "^0.20.0"
+Resulting `pyproject.toml`:
+```toml
+[project]
+dependencies = [
+  "spacy>=3.7.0",
+  "neo4j>=5.14.0",
+  "alembic>=1.12.0",
+  "sqlalchemy>=2.0.0",
+  # existing dependencies...
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest-cov>=4.1.0",
+  "pytest-mock>=3.12.0",
+  "respx>=0.20.0",
+  # existing dev dependencies...
+]
 ```
 
 ### Frontend (apps/web)
@@ -335,7 +348,7 @@ cat docs/implementation/PHASE_0_TESTING.md
 ### Step 2: Setup Testing Infrastructure (Day 1)
 ```bash
 cd apps/api
-poetry add --group dev pytest-cov pytest-mock respx
+uv add --dev pytest-cov pytest-mock respx
 ```
 
 ### Step 3: Create Test Fixtures (Day 1-2)

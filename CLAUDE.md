@@ -8,7 +8,7 @@ GraphRAG is a Retrieval-Augmented Generation (RAG) system that combines web craw
 
 ## Repository Structure
 
-```
+```text
 graphrag/
 ├── apps/
 │   ├── api/          # Python FastAPI backend
@@ -19,17 +19,20 @@ graphrag/
 ## Build & Development Commands
 
 **Start both services:**
+
 ```bash
 npm run dev                    # Starts API (port 4400) and web (port 4300)
 ```
 
 **Individual services:**
+
 ```bash
 npm run dev:api               # Backend only
 npm run dev:web               # Frontend only
 ```
 
 **Backend (FastAPI):**
+
 ```bash
 cd apps/api
 uv run python -m app.main     # Run server (uvicorn auto-reload enabled)
@@ -40,6 +43,7 @@ uv sync --dev                 # Include dev dependencies
 ```
 
 **Frontend (Next.js):**
+
 ```bash
 cd apps/web
 npm run dev                   # Development server (port 4300)
@@ -48,6 +52,7 @@ npm run lint                  # ESLint
 ```
 
 **Root-level:**
+
 ```bash
 npm run kill-ports            # Kill processes on ports 4300 and 4400
 npm run build                 # Build all workspaces
@@ -135,6 +140,7 @@ Qdrant collection (`graphrag`) is auto-created with:
 - Auto-initialization in `VectorDBService.__init__()`
 
 **Payload structure**:
+
 ```python
 {
   "content": str,      # Full markdown content
@@ -151,6 +157,45 @@ External services must be running:
 - **Ollama**: Port 4214 (LLM inference, optional)
 
 Backend health check (`/health`) reports all service URLs.
+
+## API Endpoints
+
+### Health Check Endpoints
+
+**Backend (FastAPI):**
+- `GET /health` - Returns full health status with service URLs and version
+- `HEAD /health` - Lightweight connectivity check (200 OK, no body)
+
+**Frontend (Next.js):**
+- `GET /api/health` - Proxies to backend `/health`, returns service status
+- `HEAD /api/health` - Lightweight check, proxies to backend GET (no body returned)
+
+**Response Schema:**
+```typescript
+{
+  status: "healthy" | "degraded" | "unhealthy",
+  version: string,
+  services: {
+    firecrawl: string,  // URL
+    qdrant: string,     // URL  
+    tei: string         // URL
+  }
+}
+```
+
+**Usage:**
+- Consumed by `useSystemStatus` hook for periodic health polling
+- Use HEAD method for cheap connectivity checks (load balancers, monitoring)
+- Frontend returns degraded status if backend is unreachable
+
+**Testing:**
+```bash
+# Test endpoints
+curl http://localhost:4300/api/health      # Frontend GET
+curl -I http://localhost:4300/api/health   # Frontend HEAD
+curl http://localhost:4400/health          # Backend GET
+curl -I http://localhost:4400/health       # Backend HEAD
+```
 
 ## Type System Conventions
 
@@ -239,7 +284,8 @@ uv pip list          # List installed packages
 ### Service URLs
 
 The `.env` file at repository root contains all service URLs:
-```
+
+```env
 FIRECRAWL_URL=http://localhost:4200
 FIRECRAWL_API_KEY=fc-...
 QDRANT_URL=http://localhost:4203

@@ -43,7 +43,7 @@ describe('ChatHeader', () => {
   it('renders export button', () => {
     render(<ChatHeader />);
     
-    const exportButton = screen.getByTitle('Export');
+    const exportButton = screen.getByLabelText('Export conversation (0 messages)');
     expect(exportButton).toBeInTheDocument();
   });
 
@@ -54,13 +54,29 @@ describe('ChatHeader', () => {
     expect(shareButton).toBeInTheDocument();
   });
 
-  it('calls alert when export button clicked', () => {
+  it('disables export button when no messages', () => {
     render(<ChatHeader />);
     
-    const exportButton = screen.getByTitle('Export');
-    fireEvent.click(exportButton);
+    const exportButton = screen.getByLabelText('Export conversation (0 messages)');
+    expect(exportButton).toBeDisabled();
     
-    expect(global.alert).toHaveBeenCalledWith('Export functionality - to be implemented');
+    // Disabled button shouldn't trigger alert when clicked
+    fireEvent.click(exportButton);
+    expect(global.alert).not.toHaveBeenCalled();
+  });
+
+  it('exports messages when messages exist', () => {
+    const messages = [
+      { id: '1', role: 'user' as const, content: 'test question' },
+      { id: '2', role: 'assistant' as const, content: 'test answer' },
+    ];
+    render(<ChatHeader messages={messages} />);
+    
+    const exportButton = screen.getByLabelText('Export conversation (2 messages)');
+    expect(exportButton).not.toBeDisabled();
+    
+    // Note: Actual export functionality would need to mock exportMessagesToMarkdown
+    // For now, we just verify the button is enabled with messages
   });
 
   it('calls alert when share button clicked', () => {

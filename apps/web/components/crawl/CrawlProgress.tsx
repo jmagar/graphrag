@@ -51,9 +51,25 @@ export function CrawlProgress({
   };
 
   const getStatusIcon = () => {
-    if (status === 'completed') return '✅';
-    if (status === 'failed') return '❌';
-    return '🔄';
+    if (status === 'completed') {
+      return (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      );
+    }
+    if (status === 'failed') {
+      return (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      );
+    }
+    return (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+    );
   };
 
   const getStatusColor = () => {
@@ -67,7 +83,7 @@ export function CrawlProgress({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700">
         <div className="flex items-center gap-3">
-          <div className={`text-2xl ${isActive ? 'animate-spin' : ''}`}>
+          <div className={`${getStatusColor()} ${isActive ? 'animate-spin' : ''}`}>
             {getStatusIcon()}
           </div>
           <div>
@@ -81,7 +97,10 @@ export function CrawlProgress({
         </div>
         
         <button
+          type="button"
           onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+          aria-label={isExpanded ? 'Collapse crawl progress' : 'Expand crawl progress'}
           className="p-2 hover:bg-white/50 dark:hover:bg-black/20 rounded-lg transition-colors"
         >
           <svg 
@@ -89,6 +108,7 @@ export function CrawlProgress({
             fill="none" 
             viewBox="0 0 24 24" 
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
@@ -154,9 +174,15 @@ export function CrawlProgress({
                     className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-800/30 rounded px-2 py-1.5 animate-fade-in"
                     style={{ animationDelay: `${i * 50}ms` }}
                   >
-                    <span className={page.status === 'completed' ? 'text-green-500' : 'text-yellow-500'}>
-                      {page.status === 'completed' ? '✓' : '⏳'}
-                    </span>
+                    {page.status === 'completed' ? (
+                      <svg className="w-3 h-3 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3 text-yellow-500 shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                      </svg>
+                    )}
                     <span className="truncate">{page.url}</span>
                   </div>
                 ))}
@@ -184,6 +210,7 @@ export function CrawlProgress({
           <div className="flex gap-2">
             {!isComplete && onCancel && (
               <button
+                type="button"
                 onClick={onCancel}
                 className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 rounded-lg transition-colors border border-red-200 dark:border-red-800"
               >
@@ -191,15 +218,26 @@ export function CrawlProgress({
               </button>
             )}
             {isComplete && (
-              <div className={`px-4 py-2 text-sm font-medium rounded-lg ${
-                status === 'completed' 
+              <div className={`px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 ${
+                status === 'completed'
                   ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'
                   : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
               }`}>
-                {status === 'completed' 
-                  ? '✨ All pages embedded and stored in Qdrant'
-                  : '❌ Crawl failed - check logs for details'
-                }
+                {status === 'completed' ? (
+                  <>
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span>All pages embedded and stored in Qdrant</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span>Crawl failed - check logs for details</span>
+                  </>
+                )}
               </div>
             )}
           </div>

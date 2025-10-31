@@ -30,21 +30,21 @@ class Settings(BaseSettings):
     ]
 
     # Firecrawl v2 API
-    FIRECRAWL_URL: str = ""
-    FIRECRAWL_API_KEY: str = ""
+    FIRECRAWL_URL: str
+    FIRECRAWL_API_KEY: str
 
     # Qdrant vector database
-    QDRANT_URL: str = ""
+    QDRANT_URL: str
     QDRANT_API_KEY: str = ""
     QDRANT_COLLECTION: str = "graphrag"
 
     # TEI embeddings service
-    TEI_URL: str = ""
+    TEI_URL: str
 
     # Reranker service (optional)
     RERANKER_URL: str = ""
 
-    # Ollama for LLM
+    # Ollama for LLM (optional)
     OLLAMA_URL: str = ""
     OLLAMA_MODEL: str = "qwen3:4b"
 

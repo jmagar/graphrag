@@ -14,10 +14,11 @@ describe('ConversationTabs', () => {
   });
 
   it('sets Chat as active tab by default', () => {
-    const { container } = render(<ConversationTabs />);
+    render(<ConversationTabs />);
     
-    const chatButton = screen.getByText('Chat').closest('button');
-    expect(chatButton?.className).toContain('text-blue-600');
+    const chatButton = screen.getByRole('button', { name: /Chat/i });
+    // Active tab has blue background styling
+    expect(chatButton).toHaveClass('text-blue-600');
   });
 
   it('opens dropdown when tab is clicked', () => {
@@ -68,10 +69,11 @@ describe('ConversationTabs', () => {
   it('switches active tab when different tab clicked', () => {
     render(<ConversationTabs />);
     
-    const sourcesButton = screen.getByText('Sources');
+    const sourcesButton = screen.getByRole('button', { name: /Sources/i });
     fireEvent.click(sourcesButton);
     
-    expect(sourcesButton.closest('button')?.className).toContain('text-blue-600');
+    // After clicking, Sources should have active styling
+    expect(sourcesButton).toHaveClass('text-blue-600');
   });
 
   it('renders dropdown icons', () => {

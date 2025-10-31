@@ -54,4 +54,33 @@ describe('cn utility function', () => {
     expect(result).not.toContain('bar');
     expect(result).toContain('baz');
   });
+
+  it('handles responsive and pseudo-class conflicts', () => {
+    const result = cn('hover:px-2', 'hover:px-4', 'md:text-sm', 'md:text-lg');
+    // Should resolve Tailwind conflicts, keeping the last of each variant
+    expect(result).toContain('hover:px-4');
+    expect(result).toContain('md:text-lg');
+    expect(result).not.toContain('hover:px-2');
+    expect(result).not.toContain('md:text-sm');
+  });
+
+  it('handles deeply nested arrays and objects', () => {
+    const result = cn(
+      ['foo', ['bar', 'baz']],
+      { nested: true, unused: false },
+      [['deeply', 'nested'], 'value']
+    );
+    expect(result).toContain('foo');
+    expect(result).toContain('bar');
+    expect(result).toContain('baz');
+    expect(result).toContain('nested');
+    expect(result).not.toContain('unused');
+    expect(result).toContain('deeply');
+    expect(result).toContain('value');
+  });
+
+  it('handles empty strings and whitespace', () => {
+    const result = cn('foo', '', '  ', 'bar');
+    expect(result).toBe('foo bar');
+  });
 });

@@ -4,10 +4,22 @@ import { useEffect, useState } from "react";
 
 interface CollectionInfo {
   name: string;
-  vectors_count: number | null;
+  vectors_count: number;
   points_count: number;
+  segments_count: number;
   status: string;
 }
+
+// Format number to readable format (K, M) at module scope to prevent recreation on every render
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + "M";
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "K";
+  }
+  return num.toString();
+};
 
 export function StatisticsSection() {
   const [stats, setStats] = useState<CollectionInfo | null>(null);
@@ -43,16 +55,6 @@ export function StatisticsSection() {
     return () => clearInterval(interval);
   }, []);
 
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + "M";
-    }
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + "K";
-    }
-    return num.toString();
-  };
-
   return (
     <div className="p-4 border-b border-zinc-200 dark:border-zinc-800/80">
       <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
@@ -82,12 +84,24 @@ export function StatisticsSection() {
           <div className="flex items-center justify-between py-1 text-xs">
             <span className="text-zinc-600 dark:text-zinc-400">Vectors</span>
             <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-              {stats.vectors_count !== null ? formatNumber(stats.vectors_count) : "N/A"}
+              {formatNumber(stats.vectors_count)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between py-1 text-xs">
+            <span className="text-zinc-600 dark:text-zinc-400">Segments</span>
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {formatNumber(stats.segments_count)}
             </span>
           </div>
           <div className="flex items-center justify-between py-1 text-xs">
             <span className="text-zinc-600 dark:text-zinc-400">Status</span>
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+            <span className={`font-semibold ${
+              stats.status === "green" 
+                ? "text-emerald-600 dark:text-emerald-400" 
+                : stats.status === "yellow"
+                ? "text-yellow-600 dark:text-yellow-400"
+                : "text-red-600 dark:text-red-400"
+            }`}>
               {stats.status}
             </span>
           </div>

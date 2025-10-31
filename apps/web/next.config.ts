@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   },
   /* Dev server configuration */
   devIndicators: {
-    buildActivityPosition: "bottom-right",
+    position: "bottom-right",
   },
 };
 

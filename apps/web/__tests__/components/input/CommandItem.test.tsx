@@ -43,25 +43,25 @@ describe('CommandItem', () => {
     expect(button).toBeInTheDocument();
   });
 
-  it('applies selected class when selected', () => {
-    const { container } = render(<CommandItem {...defaultProps} selected={true} />);
+  it('applies aria-selected when selected', () => {
+    render(<CommandItem {...defaultProps} selected={true} />);
     
-    const button = container.querySelector('.selected');
-    expect(button).toBeInTheDocument();
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('does not apply selected class when not selected', () => {
-    const { container } = render(<CommandItem {...defaultProps} selected={false} />);
+  it('applies aria-selected=false when not selected', () => {
+    render(<CommandItem {...defaultProps} selected={false} />);
     
-    const button = container.querySelector('.selected');
-    expect(button).not.toBeInTheDocument();
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('defaults to not selected', () => {
-    const { container } = render(<CommandItem {...defaultProps} />);
+  it('defaults aria-selected to false', () => {
+    render(<CommandItem {...defaultProps} />);
     
-    const button = container.querySelector('.selected');
-    expect(button).not.toBeInTheDocument();
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('aria-selected', 'false');
   });
 
   it('renders with different colors', () => {

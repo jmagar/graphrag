@@ -5,38 +5,27 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils"
 
-// Wrap TooltipProvider to handle SSR gracefully
 function TooltipProvider({
   delayDuration = 0,
-  children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
-  const [isMounted, setIsMounted] = React.useState(false)
-
-  React.useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  // During SSR, render children without provider
-  if (!isMounted) {
-    return <>{children}</>
-  }
-
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
       delayDuration={delayDuration}
       {...props}
-    >
-      {children}
-    </TooltipPrimitive.Provider>
+    />
   )
 }
 
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  return (
+    <TooltipProvider>
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+    </TooltipProvider>
+  )
 }
 
 function TooltipTrigger({

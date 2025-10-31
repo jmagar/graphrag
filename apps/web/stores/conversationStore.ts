@@ -215,9 +215,13 @@ export const useConversationStore = create<ConversationState>()(
         }
       },
       
-      // Send a message (uses chat endpoint which handles RAG + persistence)
+      // Send a message (uses chat endpoint which handles SSE streaming)
       sendMessage: async (content: string, useRag: boolean = true, conversationId?: string) => {
         set({ isLoading: true, error: null });
+        
+        let lastMessage: ConversationMessage | null = null;
+        let finalConversationId = conversationId;
+        
         try {
           const response = await fetch('/api/chat', {
             method: 'POST',
@@ -229,41 +233,134 @@ export const useConversationStore = create<ConversationState>()(
             }),
           });
           
-          if (!response.ok) throw new Error('Failed to send message');
+          if (!response.ok) throw new Error(`Chat request failed: ${response.statusText}`);
           
-          const data = await response.json();
+          // Get the reader for SSE stream
+          const reader = response.body?.getReader();
+          if (!reader) throw new Error('Response body is not readable');
           
-          // Update current conversation with new messages
-          const { conversation_id, message } = data;
+          const decoder = new TextDecoder();
+          let buffer = '';
           
-          // If no current conversation, load it
-          if (!conversationId || !get().currentConversation) {
-            await get().loadConversation(conversation_id);
-          } else {
-            // Add messages to current conversation
-            set(state => ({
-              currentConversation: state.currentConversation ? {
-                ...state.currentConversation,
-                messages: [
-                  ...state.currentConversation.messages,
-                  // User message (we need to add this as it's not in response)
-                  {
-                    id: `temp-${Date.now()}`,
-                    conversation_id,
-                    role: 'user' as const,
-                    content,
-                    created_at: new Date().toISOString(),
-                    extra_data: {},
-                    sources: [],
-                  },
-                  message,
-                ],
-              } : state.currentConversation,
-              isLoading: false,
-            }));
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              
+              if (done) break;
+              
+              // Decode the chunk and add to buffer
+              buffer += decoder.decode(value, { stream: true });
+              
+              // Process complete lines
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || ''; // Keep incomplete line in buffer
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const dataStr = line.slice(6); // Remove 'data: ' prefix
+                  
+                  // Check for done sentinel
+                  if (dataStr === '[DONE]') {
+                    continue;
+                  }
+                  
+                  try {
+                    const eventData = JSON.parse(dataStr);
+                    
+                    // Update state with streamed message
+                    set(state => {
+                      if (!state.currentConversation) return state;
+                      
+                      // Guard: verify conversation ID matches to prevent cross-conversation message pollution
+                      if (eventData.conversation_id && state.currentConversation.id !== eventData.conversation_id) {
+                        console.warn('Conversation ID mismatch in stream event - skipping update');
+                        return state;
+                      }
+                      
+                      const updatedMessages = [...state.currentConversation.messages];
+                      
+                      // If this is the first event and includes conversation_id, extract it
+                      if (eventData.conversation_id && !finalConversationId) {
+                        finalConversationId = eventData.conversation_id;
+                      }
+                      
+                      // If this is the assistant message, update or append it
+                      if (eventData.message && eventData.type === 'message') {
+                        lastMessage = eventData.message;
+                        
+                        // Find existing message by ID and update, or append
+                        const existingIndex = updatedMessages.findIndex(
+                          m => m.id === eventData.message.id
+                        );
+                        
+                        if (existingIndex >= 0) {
+                          updatedMessages[existingIndex] = eventData.message;
+                        } else {
+                          updatedMessages.push(eventData.message);
+                        }
+                      }
+                      
+                      return {
+                        currentConversation: {
+                          ...state.currentConversation,
+                          messages: updatedMessages,
+                        },
+                      };
+                    });
+                  } catch (parseError) {
+                    console.warn('Failed to parse SSE data:', dataStr, parseError);
+                  }
+                }
+              }
+            }
+          } finally {
+            reader.releaseLock();
           }
           
-          return message;
+          // Add user message if not already in conversation
+          set(state => {
+            if (!state.currentConversation) return state;
+            
+            const hasUserMessage = state.currentConversation.messages.some(
+              m => m.role === 'user' && m.content === content && 
+                   m.created_at === new Date().toISOString()
+            );
+            
+            if (!hasUserMessage) {
+              const userMessage: ConversationMessage = {
+                id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                conversation_id: finalConversationId || conversationId || '',
+                role: 'user',
+                content,
+                created_at: new Date().toISOString(),
+                extra_data: {},
+                sources: [],
+              };
+              
+              return {
+                currentConversation: {
+                  ...state.currentConversation,
+                  messages: [
+                    ...state.currentConversation.messages,
+                    userMessage,
+                  ],
+                },
+                isLoading: false,
+              };
+            }
+            
+            return { isLoading: false };
+          });
+          
+          return lastMessage || {
+            id: 'error',
+            conversation_id: finalConversationId || conversationId || '',
+            role: 'assistant',
+            content: 'No response received',
+            created_at: new Date().toISOString(),
+            extra_data: {},
+            sources: [],
+          };
         } catch (error) {
           set({ 
             error: error instanceof Error ? error.message : 'Unknown error',

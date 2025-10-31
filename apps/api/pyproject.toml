@@ -2,7 +2,7 @@
 name = "graphrag-backend"
 version = "0.1.0"
 description = "FastAPI backend for GraphRAG with Firecrawl v2, Qdrant, and TEI"
-authors = [{ name = "Your Name", email = "you@example.com" }]
+authors = [{ name = "GraphRAG Team", email = "dev@graphrag.local" }]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -13,9 +13,10 @@ dependencies = [
     "httpx>=0.27.0",
     "qdrant-client>=1.12.0",
     "python-dotenv>=1.0.0",
-    "python-multipart>=0.0.12",
+    "python-multipart>=0.0.9",
     "sqlalchemy[asyncio]>=2.0.0",
     "aiosqlite>=0.19.0",
+    "aiohttp>=3.9.0",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +27,7 @@ dev = [
     "black>=24.10.0",
     "ruff>=0.7.0",
     "mypy>=1.13.0",
+    "respx>=0.21.0",
 ]
 
 [build-system]
@@ -79,10 +81,4 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod",
 ]
 
-[dependency-groups]
-dev = [
-    "mypy>=1.18.2",
-    "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
-    "pytest-cov>=7.0.0",
-]
+

@@ -8,8 +8,8 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from pydantic import BaseModel
+from sqlalchemy import select, func, and_, desc
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 from app.db.database import get_session
@@ -28,7 +28,7 @@ class MessageCreate(BaseModel):
 
     role: str
     content: str
-    extra_data: Optional[dict] = {}
+    extra_data: dict = Field(default_factory=dict)
 
 
 class MessageResponse(BaseModel):
@@ -111,22 +111,17 @@ def build_conversation_response(
     """Build conversation response with computed fields."""
     tags = [tag.tag for tag in conversation.tags]
 
-    # Access instance attributes (not Column descriptors)
-    conv_id: UUID = conversation.id  # type: ignore[assignment]
-    conv_title: str = conversation.title  # type: ignore[assignment]
-    conv_space: str = conversation.space  # type: ignore[assignment]
-    conv_created: datetime = conversation.created_at  # type: ignore[assignment]
-    conv_updated: datetime = conversation.updated_at  # type: ignore[assignment]
-
-    return ConversationResponse(
-        id=conv_id,
-        title=conv_title,
-        space=conv_space,
-        created_at=conv_created,
-        updated_at=conv_updated,
-        tags=tags,
-        message_count=message_count,
-        last_message_preview=last_message,
+    return ConversationResponse.model_validate(
+        {
+            "id": conversation.id,
+            "title": conversation.title,
+            "space": conversation.space,
+            "created_at": conversation.created_at,
+            "updated_at": conversation.updated_at,
+            "tags": tags,
+            "message_count": message_count,
+            "last_message_preview": last_message,
+        }
     )
 
 
@@ -184,43 +179,75 @@ async def list_conversations(
     - **limit**: Maximum number of results (default: 50)
     - **offset**: Number of results to skip (default: 0)
     """
-    query = select(Conversation)
+    # Build base query with filters
+    conv_query = select(Conversation)
 
     # Apply filters
     if space:
-        query = query.where(Conversation.space == space)
+        conv_query = conv_query.where(Conversation.space == space)
 
     if tag:
-        query = query.join(ConversationTag).where(ConversationTag.tag == tag)
+        conv_query = conv_query.join(ConversationTag).where(ConversationTag.tag == tag)
 
-    # Apply pagination
-    query = query.offset(offset).limit(limit)
-    query = query.order_by(Conversation.updated_at.desc())
+    # Count total messages per conversation (subquery)
+    msg_count_subquery = (
+        select(
+            Message.conversation_id,
+            func.count(Message.id).label("msg_count"),
+        )
+        .group_by(Message.conversation_id)
+        .correlate(Conversation)
+        .subquery()
+    )
 
-    result = await db.execute(query)
-    conversations = result.scalars().all()
+    # Get last message per conversation (subquery with row_number)
+    last_msg_subquery = (
+        select(
+            Message.conversation_id,
+            Message.content.label("last_content"),
+            func.row_number()
+            .over(
+                partition_by=Message.conversation_id,
+                order_by=desc(Message.created_at),
+            )
+            .label("rn"),
+        )
+        .correlate(Conversation)
+        .subquery()
+    )
 
-    # Build responses with message counts
+    # Main query with joins to aggregates
+    conv_query = (
+        conv_query.outerjoin(
+            msg_count_subquery,
+            Conversation.id == msg_count_subquery.c.conversation_id,
+        )
+        .outerjoin(
+            last_msg_subquery,
+            and_(
+                Conversation.id == last_msg_subquery.c.conversation_id,
+                last_msg_subquery.c.rn == 1,
+            ),
+        )
+        .add_columns(
+            msg_count_subquery.c.msg_count,
+            last_msg_subquery.c.last_content,
+        )
+    )
+
+    # Apply pagination and ordering
+    conv_query = conv_query.order_by(Conversation.updated_at.desc()).offset(offset).limit(limit)
+
+    result = await db.execute(conv_query)
+    rows = result.all()
+
+    # Build responses
     responses = []
-    for conv in conversations:
-        # Count messages
-        msg_count_result = await db.execute(
-            select(func.count()).select_from(Message).where(Message.conversation_id == conv.id)
-        )
-        msg_count = msg_count_result.scalar()
-        msg_count_int: int = msg_count or 0  # Handle None case
-
-        # Get last message
-        last_msg_result = await db.execute(
-            select(Message)
-            .where(Message.conversation_id == conv.id)
-            .order_by(Message.created_at.desc())
-            .limit(1)
-        )
-        last_msg = last_msg_result.scalar_one_or_none()
-        last_msg_content: Optional[str] = last_msg.content if last_msg else None  # type: ignore[assignment]
-
-        responses.append(build_conversation_response(conv, msg_count_int, last_msg_content))
+    for row in rows:
+        conversation, msg_count, last_content = row[0], row[1], row[2]
+        msg_count_int: int = msg_count or 0
+        last_msg_content: Optional[str] = last_content
+        responses.append(build_conversation_response(conversation, msg_count_int, last_msg_content))
 
     return responses
 
@@ -242,25 +269,20 @@ async def get_conversation(conversation_id: UUID, db: AsyncSession = Depends(get
 
     # Build response
     tags = [tag.tag for tag in conversation.tags]
+    last_preview: Optional[str] = messages[-1].content if messages else None
 
-    # Access instance attributes (not Column descriptors)
-    conv_id: UUID = conversation.id  # type: ignore[assignment]
-    conv_title: str = conversation.title  # type: ignore[assignment]
-    conv_space: str = conversation.space  # type: ignore[assignment]
-    conv_created: datetime = conversation.created_at  # type: ignore[assignment]
-    conv_updated: datetime = conversation.updated_at  # type: ignore[assignment]
-    last_preview: Optional[str] = messages[-1].content if messages else None  # type: ignore[assignment]
-
-    return ConversationDetail(
-        id=conv_id,
-        title=conv_title,
-        space=conv_space,
-        created_at=conv_created,
-        updated_at=conv_updated,
-        tags=tags,
-        message_count=len(messages),
-        last_message_preview=last_preview,
-        messages=[MessageResponse.model_validate(m) for m in messages],
+    return ConversationDetail.model_validate(
+        {
+            "id": conversation.id,
+            "title": conversation.title,
+            "space": conversation.space,
+            "created_at": conversation.created_at,
+            "updated_at": conversation.updated_at,
+            "tags": tags,
+            "message_count": len(messages),
+            "last_message_preview": last_preview,
+            "messages": [MessageResponse.model_validate(m) for m in messages],
+        }
     )
 
 
@@ -275,7 +297,7 @@ async def update_conversation(
 
     # Update title if provided
     if data.title is not None:
-        conversation.title = data.title  # type: ignore[assignment]
+        conversation.title = data.title
 
     # Update tags if provided
     if data.tags is not None:

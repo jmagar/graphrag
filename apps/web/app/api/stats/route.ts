@@ -2,18 +2,14 @@
  * Stats API route - proxies requests to the FastAPI backend
  */
 import { NextResponse } from "next/server";
+import { fetchStatsWithDelay } from "@/lib/stats";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4400";
+const INITIAL_WAIT_MS = 1000;
 
 export async function GET() {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/query/collection/info`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      cache: "no-store", // Don't cache stats, always get fresh data
-    });
+    const response = await fetchStatsWithDelay(fetch, API_BASE_URL, INITIAL_WAIT_MS);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));

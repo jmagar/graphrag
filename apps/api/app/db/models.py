@@ -10,12 +10,13 @@ Defines SQLAlchemy ORM models for:
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship, DeclarativeBase
 from sqlalchemy.dialects.postgresql import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
+
     pass
 
 
@@ -30,7 +31,7 @@ class Conversation(Base):
         created_at: Timestamp when created
         updated_at: Timestamp when last updated
         user_id: User identifier (for future multi-user support)
-        metadata: Additional metadata (JSON)
+        extra_data: Additional metadata (JSON)
         messages: Related messages (relationship)
         tags: Related tags (relationship)
     """
@@ -40,8 +41,13 @@ class Conversation(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(255), nullable=False)
     space = Column(String(50), default="default", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     user_id = Column(String(255), nullable=True)
     extra_data = Column(JSON, default=dict, nullable=False)
 
@@ -67,7 +73,7 @@ class Message(Base):
         role: Message role ('user', 'assistant', 'system')
         content: Message content text
         created_at: Timestamp when created
-        metadata: Additional metadata (JSON)
+        extra_data: Additional metadata (JSON)
         sources: RAG sources used for this message (JSON array)
         conversation: Related conversation (relationship)
     """
@@ -80,7 +86,7 @@ class Message(Base):
     )
     role = Column(String(10), nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     extra_data = Column(JSON, default=dict, nullable=False)
     sources = Column(JSON, default=list, nullable=False)
 

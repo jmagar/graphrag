@@ -1,25 +1,73 @@
 import { memo } from 'react';
 import { Avatar } from './Avatar';
-import { Citation } from './Citation';
 import { MessageActions } from './MessageActions';
 import { Artifact } from './Artifact';
 import { ToolCall } from './ToolCall';
 import { CrawlProgress } from '../crawl/CrawlProgress';
 import { MermaidDiagram } from './MermaidDiagram';
-import type { ContentSegment } from '@/app/page';
+import type { ContentSegment } from '@/components/layout/ClientLayout';
 
 // Import prompt-kit components
 import {
   Message,
   MessageContent,
 } from '@/components/ui/message';
-import { Markdown } from '@/components/ui/markdown';
 import { CodeBlockCode, CodeBlock } from '@/components/ui/code-block';
+import { Loader } from '@/components/ui/loader';
+import { Source, SourceTrigger, SourceContent } from '@/components/ui/source';
+import { Image } from '@/components/ui/image';
 
 // Helper to check if content is ContentSegment array
 function isContentSegmentArray(content: string | string[] | ContentSegment[]): content is ContentSegment[] {
   return Array.isArray(content) && content.length > 0 && typeof content[0] === 'object' && 'type' in content[0];
 }
+
+// Shared markdown components for MessageContent
+const markdownComponents = {
+  // Render images with prompt-kit Image component
+  img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    const { src, alt } = props;
+    if (!src || typeof src !== 'string') return null;
+    // Check if it's a data URL (base64)
+    const isBase64 = src.startsWith('data:');
+    if (isBase64) {
+      const [mediaTypeStr, base64Data] = src.split(',');
+      const mediaType = mediaTypeStr?.replace('data:', '').replace(';base64', '') || 'image/png';
+      return <Image base64={base64Data} mediaType={mediaType} alt={alt || 'AI-generated image'} className="my-4" />;
+    }
+    // Regular URL image
+    return <img src={src} alt={alt || 'Image'} className="my-4 rounded-lg max-w-full" />;
+  },
+
+  // Code blocks - use prompt-kit CodeBlock
+  code({ className, children }: { className?: string; children?: React.ReactNode }) {
+    const match = /language-(\w+)/.exec(className || '');
+    const inline = !match;
+    const language = match ? match[1] : 'text';
+    const value = String(children).replace(/\n$/, '');
+
+    // Mermaid diagrams (keep custom)
+    if (language === 'mermaid') {
+      return <MermaidDiagram chart={value} />;
+    }
+
+    // Inline code
+    if (inline) {
+      return (
+        <code className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-50 px-2 py-0.5 rounded-md text-[13px] font-mono border border-zinc-200 dark:border-zinc-700/50">
+          {children}
+        </code>
+      );
+    }
+
+    // Block code with prompt-kit
+    return (
+      <CodeBlock className="my-4">
+        <CodeBlockCode code={value} language={language} theme="github-dark" />
+      </CodeBlock>
+    );
+  },
+};
 
 interface AIMessageProps {
   content: string | string[] | ContentSegment[];
@@ -95,7 +143,6 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
 
   return (
     <article
-      role="article"
       aria-label={`AI assistant response${timestamp ? ` at ${timestamp}` : ''}`}
     >
       <Message className="message-animate group px-4 md:px-6 py-4 md:py-5 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 rounded-2xl transition-colors duration-200">
@@ -112,11 +159,7 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
             aria-atomic="true"
             className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-zinc-50 to-transparent dark:from-zinc-900/50 dark:to-transparent rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 backdrop-blur-sm"
           >
-            <div className="flex gap-1.5" aria-hidden="true">
-              <div className="w-2 h-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full animate-bounce shadow-sm motion-reduce:animate-pulse" style={{ animationDelay: '0ms', animationDuration: '0.6s' }} />
-              <div className="w-2 h-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full animate-bounce shadow-sm motion-reduce:animate-pulse" style={{ animationDelay: '150ms', animationDuration: '0.6s' }} />
-              <div className="w-2 h-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full animate-bounce shadow-sm motion-reduce:animate-pulse" style={{ animationDelay: '300ms', animationDuration: '0.6s' }} />
-            </div>
+            <Loader variant="dots" size="sm" className="text-blue-600 dark:text-blue-400" />
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
               AI assistant is thinking...
             </span>
@@ -147,39 +190,7 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
                     markdown
                     className="animate-stream-in break-words prose prose-base max-w-none text-[15px] md:text-base bg-transparent p-0"
                     style={{ animationDelay: `${index * 50}ms` }}
-                    components={{
-                      // Remove all images
-                      img: () => null,
-
-                      // Code blocks - use prompt-kit CodeBlock
-                      code({ className, children, ...props }: any) {
-                        const match = /language-(\w+)/.exec(className || '');
-                        const inline = !match;
-                        const language = match ? match[1] : 'text';
-                        const value = String(children).replace(/\n$/, '');
-
-                        // Mermaid diagrams (keep custom)
-                        if (language === 'mermaid') {
-                          return <MermaidDiagram chart={value} />;
-                        }
-
-                        // Inline code
-                        if (inline) {
-                          return (
-                            <code className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-50 px-2 py-0.5 rounded-md text-[13px] font-mono border border-zinc-200 dark:border-zinc-700/50">
-                              {children}
-                            </code>
-                          );
-                        }
-
-                        // Block code with prompt-kit
-                        return (
-                          <CodeBlock className="my-4">
-                            <CodeBlockCode code={value} language={language} theme="github-dark" />
-                          </CodeBlock>
-                        );
-                      },
-                    }}
+                    components={markdownComponents}
                   >
                     {segment.text}
                   </MessageContent>
@@ -192,39 +203,7 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
           <MessageContent
             markdown
             className="prose prose-base max-w-none text-[15px] md:text-base bg-transparent p-0"
-            components={{
-              // Remove all images
-              img: () => null,
-
-              // Code blocks - use prompt-kit CodeBlock
-              code({ className, children, ...props }: any) {
-                const match = /language-(\w+)/.exec(className || '');
-                const inline = !match;
-                const language = match ? match[1] : 'text';
-                const value = String(children).replace(/\n$/, '');
-
-                // Mermaid diagrams (keep custom)
-                if (language === 'mermaid') {
-                  return <MermaidDiagram chart={value} />;
-                }
-
-                // Inline code
-                if (inline) {
-                  return (
-                    <code className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-50 px-2 py-0.5 rounded-md text-[13px] font-mono border border-zinc-200 dark:border-zinc-700/50">
-                      {children}
-                    </code>
-                  );
-                }
-
-                // Block code with prompt-kit
-                return (
-                  <CodeBlock className="my-4">
-                    <CodeBlockCode code={value} language={language} theme="github-dark" />
-                  </CodeBlock>
-                );
-              },
-            }}
+            components={markdownComponents}
           >
             {getTextContent()}
           </MessageContent>
@@ -273,13 +252,19 @@ const AIMessageComponent = ({ content, citations, timestamp = "2:34 PM", isStrea
         {citations && citations.length > 0 && (
           <div className="flex flex-wrap gap-1.5 md:gap-2">
             {citations.map((citation) => (
-              <Citation
-                key={citation.number}
-                number={citation.number}
-                title={citation.title}
-                url={citation.url}
-                preview={citation.preview}
-              />
+              <Source key={citation.number} href={citation.url || '#'}>
+                <SourceTrigger 
+                  label={citation.number} 
+                  showFavicon={false}
+                  className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-500/10 dark:to-emerald-500/5 hover:from-emerald-100 hover:to-emerald-100 dark:hover:from-emerald-500/20 dark:hover:to-emerald-500/10 border-emerald-200/50 dark:border-emerald-500/20 text-emerald-900 dark:text-emerald-300"
+                />
+                {citation.url && (
+                  <SourceContent 
+                    title={citation.title}
+                    description={citation.preview || `Source ${citation.number}`}
+                  />
+                )}
+              </Source>
             ))}
           </div>
         )}

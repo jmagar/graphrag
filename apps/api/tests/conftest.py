@@ -8,12 +8,23 @@ This module provides:
 - Environment configuration for tests
 - Database fixtures for testing
 """
+
+import os
 import pytest
 from httpx import AsyncClient, ASGITransport
 from typing import AsyncGenerator, Dict, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+
+# Set required environment variables before importing app modules
+os.environ.setdefault("FIRECRAWL_URL", "http://mock-firecrawl:4200")
+os.environ.setdefault("FIRECRAWL_API_KEY", "test-api-key")
+os.environ.setdefault("QDRANT_URL", "http://mock-qdrant:6333")
+os.environ.setdefault("TEI_URL", "http://mock-tei:8080")
+os.environ.setdefault("OLLAMA_URL", "http://mock-ollama:11434")
+os.environ.setdefault("WEBHOOK_BASE_URL", "http://test:4400")
+
 from app.main import app
 from app.db.models import Base
 
@@ -32,7 +43,7 @@ pytest_plugins = ("anyio",)
 async def test_client() -> AsyncGenerator[AsyncClient, None]:
     """
     Provides an httpx AsyncClient for testing FastAPI endpoints.
-    
+
     Usage:
         async def test_endpoint(test_client):
             response = await test_client.get("/api/v1/health")
@@ -47,7 +58,7 @@ async def test_client() -> AsyncGenerator[AsyncClient, None]:
 def mock_embeddings_service():
     """
     Mock EmbeddingsService with pre-configured responses.
-    
+
     Returns:
         Mock object with generate_embedding method
     """
@@ -61,28 +72,30 @@ def mock_embeddings_service():
 def mock_vector_db_service():
     """
     Mock VectorDBService with pre-configured responses.
-    
+
     Returns:
         Mock object with upsert_document, search, and get_collection_info methods
     """
     service = MagicMock()
     service.upsert_document = AsyncMock(return_value=None)
-    service.search = AsyncMock(return_value=[
-        {
-            "id": "doc1",
-            "score": 0.95,
-            "payload": {
+    service.search = AsyncMock(
+        return_value=[
+            {
+                "id": "doc1",
+                "score": 0.95,
                 "content": "Sample content",
-                "metadata": {"sourceURL": "https://example.com"}
+                "metadata": {"sourceURL": "https://example.com"},
             }
+        ]
+    )
+    service.get_collection_info = AsyncMock(
+        return_value={
+            "name": "graphrag",
+            "points_count": 100,
+            "vectors_count": 100,
+            "status": "green",
         }
-    ])
-    service.get_collection_info = AsyncMock(return_value={
-        "name": "graphrag",
-        "points_count": 100,
-        "vectors_count": 100,
-        "status": "green"
-    })
+    )
     return service
 
 
@@ -90,27 +103,24 @@ def mock_vector_db_service():
 def mock_firecrawl_service():
     """
     Mock FirecrawlService with pre-configured responses.
-    
+
     Returns:
         Mock object with start_crawl, get_crawl_status, and cancel_crawl methods
     """
     service = MagicMock()
-    service.start_crawl = AsyncMock(return_value={
-        "id": "crawl_123",
-        "status": "started",
-        "url": "https://example.com"
-    })
-    service.get_crawl_status = AsyncMock(return_value={
-        "id": "crawl_123",
-        "status": "completed",
-        "total": 5,
-        "completed": 5,
-        "data": []
-    })
-    service.cancel_crawl = AsyncMock(return_value={
-        "id": "crawl_123",
-        "status": "cancelled"
-    })
+    service.start_crawl = AsyncMock(
+        return_value={"id": "crawl_123", "status": "started", "url": "https://example.com"}
+    )
+    service.get_crawl_status = AsyncMock(
+        return_value={
+            "id": "crawl_123",
+            "status": "completed",
+            "total": 5,
+            "completed": 5,
+            "data": [],
+        }
+    )
+    service.cancel_crawl = AsyncMock(return_value={"id": "crawl_123", "status": "cancelled"})
     return service
 
 
@@ -118,7 +128,7 @@ def mock_firecrawl_service():
 def mock_llm_service():
     """
     Mock LLMService with pre-configured responses.
-    
+
     Returns:
         Mock object with generate_response method
     """
@@ -131,7 +141,7 @@ def mock_llm_service():
 def sample_crawl_page_data() -> Dict[str, Any]:
     """
     Sample page data as received from Firecrawl webhook (crawl.page event).
-    
+
     Returns:
         Dictionary matching Firecrawl v2 page data structure
     """
@@ -143,9 +153,9 @@ def sample_crawl_page_data() -> Dict[str, Any]:
             "title": "Example Page",
             "description": "This is an example page",
             "language": "en",
-            "statusCode": 200
+            "statusCode": 200,
         },
-        "links": ["https://example.com/page2"]
+        "links": ["https://example.com/page2"],
     }
 
 
@@ -153,7 +163,7 @@ def sample_crawl_page_data() -> Dict[str, Any]:
 def sample_webhook_crawl_page() -> Dict[str, Any]:
     """
     Sample webhook payload for crawl.page event.
-    
+
     Returns:
         Complete webhook payload as sent by Firecrawl
     """
@@ -165,9 +175,9 @@ def sample_webhook_crawl_page() -> Dict[str, Any]:
             "metadata": {
                 "sourceURL": "https://example.com/page1",
                 "title": "Example Page",
-                "description": "This is an example page"
-            }
-        }
+                "description": "This is an example page",
+            },
+        },
     }
 
 
@@ -175,7 +185,7 @@ def sample_webhook_crawl_page() -> Dict[str, Any]:
 def sample_webhook_crawl_completed() -> Dict[str, Any]:
     """
     Sample webhook payload for crawl.completed event.
-    
+
     Returns:
         Complete webhook payload as sent by Firecrawl
     """
@@ -185,13 +195,13 @@ def sample_webhook_crawl_completed() -> Dict[str, Any]:
         "data": [
             {
                 "markdown": "# Page 1",
-                "metadata": {"sourceURL": "https://example.com/page1", "title": "Page 1"}
+                "metadata": {"sourceURL": "https://example.com/page1", "title": "Page 1"},
             },
             {
                 "markdown": "# Page 2",
-                "metadata": {"sourceURL": "https://example.com/page2", "title": "Page 2"}
-            }
-        ]
+                "metadata": {"sourceURL": "https://example.com/page2", "title": "Page 2"},
+            },
+        ],
     }
 
 
@@ -199,14 +209,14 @@ def sample_webhook_crawl_completed() -> Dict[str, Any]:
 def sample_webhook_crawl_failed() -> Dict[str, Any]:
     """
     Sample webhook payload for crawl.failed event.
-    
+
     Returns:
         Complete webhook payload as sent by Firecrawl
     """
     return {
         "type": "crawl.failed",
         "id": "crawl_123",
-        "error": "Failed to crawl: Connection timeout"
+        "error": "Failed to crawl: Connection timeout",
     }
 
 
@@ -214,7 +224,7 @@ def sample_webhook_crawl_failed() -> Dict[str, Any]:
 def sample_crawl_request() -> Dict[str, Any]:
     """
     Sample crawl request payload.
-    
+
     Returns:
         Dictionary matching CrawlRequest schema
     """
@@ -223,7 +233,7 @@ def sample_crawl_request() -> Dict[str, Any]:
         "includes": ["**/docs/**"],
         "excludes": ["**/admin/**"],
         "maxDepth": 3,
-        "maxPages": 10
+        "maxPages": 10,
     }
 
 
@@ -231,22 +241,18 @@ def sample_crawl_request() -> Dict[str, Any]:
 def sample_query_request() -> Dict[str, Any]:
     """
     Sample query request payload.
-    
+
     Returns:
         Dictionary matching QueryRequest schema
     """
-    return {
-        "query": "What is GraphRAG?",
-        "limit": 5,
-        "use_llm": True
-    }
+    return {"query": "What is GraphRAG?", "limit": 5, "use_llm": True}
 
 
 @pytest.fixture
 def mock_settings(monkeypatch):
     """
     Mock application settings for testing.
-    
+
     Usage:
         def test_with_mock_settings(mock_settings):
             assert settings.FIRECRAWL_URL == "http://mock-firecrawl:4200"
@@ -263,38 +269,35 @@ def mock_settings(monkeypatch):
 # Database Fixtures
 # ============================================================================
 
+
 @pytest.fixture(scope="function")
 async def db_engine(anyio_backend):
     """
     Create a test database engine using SQLite in-memory.
-    
+
     Each test function gets a fresh database.
     """
     from sqlalchemy import event
     from sqlalchemy.engine import Engine
-    
+
     @event.listens_for(Engine, "connect")
     def set_sqlite_pragma(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
-    
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        future=True
-    )
-    
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, future=True)
+
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     # Cleanup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     await engine.dispose()
 
 
@@ -302,19 +305,17 @@ async def db_engine(anyio_backend):
 async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
     """
     Provides a database session for testing.
-    
+
     Each test gets a fresh session that's rolled back after the test.
-    
+
     Usage:
         async def test_something(db_session):
             obj = MyModel(name="test")
             db_session.add(obj)
             await db_session.commit()
     """
-    async_session = sessionmaker(
-        db_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
+    async_session = sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
     async with async_session() as session:
         yield session
         await session.rollback()

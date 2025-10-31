@@ -4,68 +4,18 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useRef, useEffect } from 'react';
-import { LeftSidebar } from '@/components/layout/LeftSidebar';
-import { RightSidebar } from '@/components/layout/RightSidebar';
-import { SidebarDrawer } from '@/components/layout/SidebarDrawer';
-import { ChatHeader } from '@/components/chat/ChatHeader';
-import { AIMessage } from '@/components/chat/AIMessage';
-import { UserMessage } from '@/components/chat/UserMessage';
-import { ChatInput } from '@/components/input/ChatInput';
-import { TypingIndicator } from '@/components/chat/TypingIndicator';
-import { useIsDesktop } from '@/hooks/useMediaQuery';
-import { toast, Toaster } from 'sonner';
+import { ClientLayout, type ChatMessage, type ContentSegment } from '@/components/layout/ClientLayout';
+import { toast } from 'sonner';
 import { useConversationStore } from '@/stores/conversationStore';
 
-// Content can be either text or a tool call, allowing inline rendering
-export type ContentSegment =
-  | { type: 'text'; text: string }
-  | { type: 'tool'; command: string; args?: string; status?: 'running' | 'complete' | 'error' };
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string | string[] | ContentSegment[];
-  citations?: Array<{ number: number; title: string }>;
-  timestamp: string;
-  isStreaming?: boolean;
-  artifact?: {
-    type: 'markdown' | 'code' | 'text' | 'json' | 'html';
-    content: string;
-    language?: string;
-    title?: string;
-    url?: string;
-  };
-  metadata?: {
-    url?: string;
-    scrapedContent?: string;
-  };
-  toolCalls?: Array<{
-    command: string;
-    args?: string;
-  }>;
-  crawl?: {
-    jobId: string;
-    status: 'active' | 'completed' | 'failed';
-    url: string;
-    data?: {
-      completed: number;
-      total: number;
-      creditsUsed: number;
-      expiresAt?: string;
-      recentPages?: Array<{ url: string; status: string }>;
-    };
-  };
-}
-
 export default function GraphRAGPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null); // Claude Agent SDK session
   const abortControllerRef = useRef<AbortController | null>(null);
   const messageTimestampsRef = useRef<number[]>([]);
-  const isDesktop = useIsDesktop();
   
   // Conversation store for persistence
   const { 
@@ -170,7 +120,7 @@ export default function GraphRAGPage() {
   useEffect(() => {
     if (currentConversation?.messages) {
       // Convert backend messages to UI message format
-      const uiMessages: Message[] = currentConversation.messages.map(msg => ({
+      const uiMessages: ChatMessage[] = currentConversation.messages.map(msg => ({
         id: msg.id,
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
@@ -188,7 +138,7 @@ export default function GraphRAGPage() {
   }, [currentConversation]);
 
   const handleCommand = async (command: string, args: string) => {
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       content: `/${command} ${args}`,
@@ -227,7 +177,7 @@ export default function GraphRAGPage() {
           artifactTitle = 'Scraped Content';
           
           // Store scraped content in message metadata so assistant can access it
-          const responseMessage: Message = {
+          const responseMessage: ChatMessage = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
             content: [`✅ Scraped content from URL. You can ask me questions about it!`],
@@ -292,7 +242,7 @@ export default function GraphRAGPage() {
           artifactTitle = 'Search Results';
           
           // Store full search results in metadata for assistant context
-          const responseMessage: Message = {
+          const responseMessage: ChatMessage = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
             content: [`✅ Search completed. You can ask me questions about these results!`],
@@ -346,7 +296,7 @@ export default function GraphRAGPage() {
           artifactTitle = 'Extracted Data';
           
           // Store extracted data in metadata for assistant context
-          const responseMessage: Message = {
+          const responseMessage: ChatMessage = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
             content: [`✅ Data extracted. You can ask me questions about this data!`],
@@ -364,52 +314,6 @@ export default function GraphRAGPage() {
             toolCalls: [{
               command: 'extract',
               args: `${url} ${schemaDesc}`.trim()
-            }]
-          };
-          setMessages(prev => [...prev, responseMessage]);
-          setIsLoading(false);
-          return;
-        }
-
-        case 'map': {
-          const urlArg = args.trim();
-          if (!urlArg) {
-            throw new Error('Usage: /map <url>\nExample: /map https://react.dev');
-          }
-          
-          // Auto-add https:// if missing
-          const url = urlArg.startsWith('http') ? urlArg : `https://${urlArg}`;
-          
-          const response = await fetch('/api/map', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, limit: 100 })
-          });
-          
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Map failed');
-          }
-          
-          const data = await response.json();
-          result = `Found ${data.total} URLs:\n\n${data.urls.join('\n')}`;
-          artifactType = 'text';
-          artifactTitle = 'Website Map';
-          
-          // Map results - show as artifact (no need for context)
-          const responseMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: [`✅ Mapped ${data.total} URLs from the website`],
-            timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-            artifact: {
-              type: artifactType,
-              content: result,
-              title: artifactTitle
-            },
-            toolCalls: [{
-              command: 'map',
-              args: url
             }]
           };
           setMessages(prev => [...prev, responseMessage]);
@@ -453,7 +357,7 @@ export default function GraphRAGPage() {
             : [];
           
           // Crawl status - use CrawlProgress component (no artifact)
-          const responseMessage: Message = {
+          const responseMessage: ChatMessage = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
             content: [`✅ Crawl job started! Watch the progress update in real-time below.`],
@@ -482,7 +386,7 @@ export default function GraphRAGPage() {
       
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: `❌ ${errorMsg}`,
@@ -616,7 +520,7 @@ export default function GraphRAGPage() {
     const isUrl = urlRegex.test(content.trim());
 
     // Add user message
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       content,
@@ -645,7 +549,7 @@ export default function GraphRAGPage() {
         
         // Add scraped content as an artifact
         const markdown = scrapeData.data?.markdown || scrapeData.data?.html || 'Content retrieved successfully';
-        const scrapeMessage: Message = {
+        const scrapeMessage: ChatMessage = {
           id: (Date.now() + 0.5).toString(),
           role: 'assistant',
           content: [`I've scraped the content from this URL. You can ask me questions about it!`],
@@ -668,7 +572,7 @@ export default function GraphRAGPage() {
         console.error('Scrape error:', scrapeError);
         // Show error message
         const scrapeErrorMsg = scrapeError instanceof Error ? scrapeError.message : 'Unknown error';
-        const errorMessage: Message = {
+        const errorMessage: ChatMessage = {
           id: (Date.now() + 0.5).toString(),
           role: 'assistant',
           content: [`❌ Failed to scrape URL: ${scrapeErrorMsg}`],
@@ -682,7 +586,7 @@ export default function GraphRAGPage() {
 
     // Create assistant message placeholder for streaming
     const assistantId = (Date.now() + 1).toString();
-    const assistantMessage: Message = {
+    const assistantMessage: ChatMessage = {
       id: assistantId,
       role: 'assistant',
       content: [], // Start with empty ContentSegment array
@@ -952,83 +856,16 @@ export default function GraphRAGPage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-      {/* Left Sidebar - Desktop Only */}
-      {isDesktop && <LeftSidebar />}
-      
-      {/* Left Drawer - Mobile/Tablet */}
-      <SidebarDrawer
-        isOpen={leftDrawerOpen}
-        onClose={() => setLeftDrawerOpen(false)}
-        side="left"
-      >
-        <LeftSidebar />
-      </SidebarDrawer>
-      
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-zinc-50 dark:bg-zinc-900">
-        <ChatHeader
-          onLeftMenuClick={() => setLeftDrawerOpen(true)}
-          onRightMenuClick={() => setRightDrawerOpen(true)}
-          messages={messages.map(m => ({
-            id: m.id,
-            role: m.role,
-            content: Array.isArray(m.content) 
-              ? m.content.map(c => typeof c === 'string' ? c : c.type === 'text' ? c.text : '')
-              : m.content,
-            timestamp: m.timestamp,
-            citations: m.citations
-          }))}
-        />
-        
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto custom-scroll pb-24 md:pb-32">
-          <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-12 space-y-4 md:space-y-6">
-            {messages.map((message) =>
-              message.role === 'assistant' ? (
-                <AIMessage
-                  key={message.id}
-                  content={Array.isArray(message.content) ? message.content : [message.content]}
-                  citations={message.citations}
-                  timestamp={message.timestamp}
-                  isStreaming={message.isStreaming}
-                  artifact={message.artifact}
-                  toolCalls={message.toolCalls}
-                  crawl={message.crawl}
-                  onCancelCrawl={handleCancelCrawl}
-                />
-              ) : (
-                <UserMessage
-                  key={message.id}
-                  content={message.content as string}
-                  timestamp={message.timestamp}
-                />
-              )
-            )}
-
-            {/* Typing Indicator - only show when loading but no streaming message exists */}
-            {isLoading && !messages.some(m => m.isStreaming) && <TypingIndicator />}
-          </div>
-        </div>
-        
-        {/* Input Area */}
-        <ChatInput onSend={handleSendMessage} />
-      </div>
-      
-      {/* Right Sidebar - Desktop Only */}
-      {isDesktop && <RightSidebar />}
-      
-      {/* Right Drawer - Mobile/Tablet */}
-      <SidebarDrawer
-        isOpen={rightDrawerOpen}
-        onClose={() => setRightDrawerOpen(false)}
-        side="right"
-      >
-        <RightSidebar />
-      </SidebarDrawer>
-      
-      {/* Toast Notifications */}
-      <Toaster position="top-right" richColors />
-    </div>
+    <ClientLayout
+      messages={messages}
+      isLoading={isLoading}
+      onSendMessage={handleSendMessage}
+      onCommand={handleCommand}
+      onCancelCrawl={handleCancelCrawl}
+      leftDrawerOpen={leftDrawerOpen}
+      rightDrawerOpen={rightDrawerOpen}
+      onLeftDrawerChange={setLeftDrawerOpen}
+      onRightDrawerChange={setRightDrawerOpen}
+    />
   );
 }

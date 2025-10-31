@@ -1,6 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { NextRequest } from "next/server";
 import { firecrawlServer } from "@/lib/firecrawl-tools";
+import { createSSEStreamController } from "@/lib/sse";
 
 interface ChatRequest {
   message: string;
@@ -26,6 +27,18 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        const sse = createSSEStreamController(controller, encoder);
+        const abortHandler = () => {
+          sse.close();
+        };
+
+        if (request.signal.aborted) {
+          abortHandler();
+          return;
+        }
+
+        request.signal.addEventListener("abort", abortHandler);
+
         try {
           // Query Claude Agent SDK with MCP tools
           // SDK manages conversation state - just resume if sessionId provided
@@ -86,21 +99,21 @@ Be concise, helpful, and technical when appropriate.`,
                 type: 'session_init',
                 session_id: msg.session_id
               });
-              controller.enqueue(encoder.encode(`data: ${sessionData}\n\n`));
+              sse.send(`data: ${sessionData}\n\n`);
             }
             
             // Send all message types to frontend
             const data = JSON.stringify(msg);
-            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+            sse.send(`data: ${data}\n\n`);
 
             // If this is a final result, close the stream
             if (msg.type === "result") {
-              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              sse.send("data: [DONE]\n\n");
               break;
             }
           }
 
-          controller.close();
+          sse.close();
         } catch (error: unknown) {
           console.error("Chat error:", error);
           const errorMessage = error instanceof Error ? error.message : "An error occurred";
@@ -108,8 +121,10 @@ Be concise, helpful, and technical when appropriate.`,
             type: "error",
             error: errorMessage,
           });
-          controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-          controller.close();
+          sse.send(`data: ${errorData}\n\n`);
+          sse.close();
+        } finally {
+          request.signal.removeEventListener("abort", abortHandler);
         }
       },
     });

@@ -36,7 +36,8 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-// Convenience hooks for common breakpoints
+// Convenience hooks for common breakpoints (aligned with Tailwind CSS breakpoints)
+// md breakpoint = 768px
 export function useIsMobile() {
   return useMediaQuery('(max-width: 767px)');
 }

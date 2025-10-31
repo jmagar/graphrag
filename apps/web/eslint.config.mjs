@@ -12,9 +12,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    "__tests__/**",
-    "jest.config.js",
-    "jest.setup.js",
   ]),
   {
     rules: {
@@ -23,6 +20,16 @@ const eslintConfig = defineConfig([
       '@typescript-eslint/no-require-imports': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
+      'prefer-const': 'warn',
+    }
+  },
+  {
+    files: ['**/__tests__/**', '*.test.ts', '*.test.tsx'],
+    rules: {
+      // Relax rules in test files for better testability
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      // TODO: Consider stricter typing in integration tests
       'prefer-const': 'warn',
     }
   }

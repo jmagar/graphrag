@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CodeBlock } from './CodeBlock';
+import { CodeBlock, CodeBlockCode } from '@/components/ui/code-block';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -46,18 +46,24 @@ export function Artifact({ type, content, language = 'text', title, url }: Artif
                   img: () => null,
 
                   // Code blocks with syntax highlighting
-                  code({ className, children, ...props }: any) {
+                  code({ className, children, ...props }: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>) {
                     const match = /language-(\w+)/.exec(className || '');
                     const inline = !match;
                     const language = match ? match[1] : 'text';
-                    const value = String(children).replace(/\n$/, '');
+                    const code = String(children).replace(/\n$/, '');
+
+                    if (inline) {
+                      return (
+                        <code className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-900 dark:text-zinc-50 px-2 py-0.5 rounded-md text-[13px] font-mono border border-zinc-200 dark:border-zinc-700/50">
+                          {code}
+                        </code>
+                      );
+                    }
 
                     return (
-                      <CodeBlock
-                        language={language}
-                        value={value}
-                        inline={inline}
-                      />
+                      <CodeBlock className="my-4">
+                        <CodeBlockCode code={code} language={language} theme="github-dark" />
+                      </CodeBlock>
                     );
                   },
                   
@@ -93,13 +99,9 @@ export function Artifact({ type, content, language = 'text', title, url }: Artif
       case 'html':
         const codeLanguage = type === 'json' ? 'json' : type === 'html' ? 'html' : language;
         return (
-          <div className="overflow-auto max-h-[600px] [&_.shiki-code-block]:my-0 [&_.shiki-code-block]:rounded-none [&_.shiki-code-block]:border-none">
-            <CodeBlock
-              language={codeLanguage}
-              value={content}
-              inline={false}
-            />
-          </div>
+          <CodeBlock>
+            <CodeBlockCode code={content} language={codeLanguage} theme="github-dark" />
+          </CodeBlock>
         );
 
       case 'text':
