@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ClientLayout, type ChatMessage, type ContentSegment } from '@/components/layout/ClientLayout';
 import { toast } from 'sonner';
 import { useConversationStore } from '@/stores/conversationStore';
+import { useConversationSave } from '@/hooks/useConversationSave';
 
 export default function GraphRAGPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -23,6 +24,9 @@ export default function GraphRAGPage() {
     loadConversation, 
     createConversation
   } = useConversationStore();
+
+  // Conversation save hook with rate limiting and deduplication
+  const { saveMessages } = useConversationSave();
 
   // Real-time crawl progress polling with proper cleanup
   useEffect(() => {
@@ -426,61 +430,19 @@ export default function GraphRAGPage() {
     }
   };
 
-  // Helper: Save message to backend (async, non-blocking)
-  const saveToBackend = async (userMessage: string, assistantMessage: string) => {
-    try {
-      let conversationId = currentConversation?.id;
-      
-      // Create conversation if it doesn't exist
-      if (!conversationId) {
-        const newConv = await createConversation(
-          userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : '')
-        );
-        conversationId = newConv.id;
-      }
-      
-      // Save user message
-      const userResponse = await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: 'user',
-          content: userMessage,
-          extra_data: {}
-        })
+  // Helper: Safely trigger save outside render cycle
+  // This queues the save to happen asynchronously without blocking
+  const queueSave = (userMessage: string, assistantMessage: string) => {
+    // Use queueMicrotask to ensure this runs after render completes
+    queueMicrotask(() => {
+      saveMessages({
+        userMessage,
+        assistantMessage,
+        conversationId: currentConversation?.id
+      }).catch(error => {
+        console.error('Background save failed:', error);
       });
-      
-      if (!userResponse.ok) {
-        const errorText = await userResponse.text();
-        console.error('Failed to save user message:', userResponse.status, errorText);
-        throw new Error(`Failed to save user message: ${userResponse.status}`);
-      }
-      
-      // Save assistant message
-      const assistantResponse = await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: 'assistant',
-          content: assistantMessage,
-          extra_data: {}
-        })
-      });
-      
-      if (!assistantResponse.ok) {
-        const errorText = await assistantResponse.text();
-        console.error('Failed to save assistant message:', assistantResponse.status, errorText);
-        throw new Error(`Failed to save assistant message: ${assistantResponse.status}`);
-      }
-      
-      // Reload conversation to get updated messages
-      if (conversationId) {
-        await loadConversation(conversationId);
-      }
-    } catch (error) {
-      console.error('Failed to save to backend:', error);
-      // Don't throw - saving is optional enhancement
-    }
+    });
   };
 
   const handleSendMessage = async (content: string) => {
@@ -831,8 +793,7 @@ export default function GraphRAGPage() {
     } finally {
       abortControllerRef.current = null;
       
-      // Save conversation to backend (non-blocking)
-      // Use a small delay to ensure state is updated
+      // Queue save operation (runs after render with rate limiting and deduplication)
       setTimeout(() => {
         setMessages(currentMessages => {
           const assistantMsg = currentMessages.find(m => m.id === assistantId);
@@ -844,9 +805,9 @@ export default function GraphRAGPage() {
                 ).join('')
               : String(assistantContent);
             
-            // Save to backend without blocking UI
+            // Queue save with all safety guardrails
             if (assistantText.trim()) {
-              saveToBackend(content, assistantText).catch(console.error);
+              queueSave(content, assistantText);
             }
           }
           return currentMessages; // Don't modify state, just read it

@@ -1,19 +1,71 @@
 """
-Firecrawl v2 API service.
+Firecrawl v2 API service with connection pooling.
 """
 
 import httpx
-from typing import Dict, Any, cast
+import logging
+from typing import Dict, Any, cast, Optional
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class FirecrawlService:
-    """Service for interacting with Firecrawl v2 API."""
+    """
+    Service for interacting with Firecrawl v2 API.
+
+    Uses persistent HTTP client with connection pooling for better performance.
+    """
 
     def __init__(self):
         self.base_url = settings.FIRECRAWL_URL
         self.api_key = settings.FIRECRAWL_API_KEY
         self.headers = {"Authorization": f"Bearer {self.api_key}"}
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create the persistent HTTP client with connection pooling."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                headers=self.headers,
+                timeout=httpx.Timeout(60.0, connect=10.0),
+                limits=httpx.Limits(
+                    max_connections=100,
+                    max_keepalive_connections=20,
+                ),
+            )
+        return self._client
+
+    async def close(self) -> None:
+        """
+        Close the HTTP client and release connections.
+        
+        Safe to call multiple times. Errors are logged but not raised.
+        """
+        if self._client and not self._client.is_closed:
+            try:
+                await self._client.aclose()
+                logger.info("🔌 HTTP client connections closed")
+            except Exception as e:
+                logger.error(f"Error closing HTTP client: {e}")
+            finally:
+                self._client = None
+        else:
+            logger.debug("HTTP client already closed or not initialized")
+    
+    @property
+    def is_closed(self) -> bool:
+        """Check if the HTTP client is closed."""
+        return self._client is None or self._client.is_closed
+    
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit with automatic cleanup."""
+        await self.close()
+        return False  # Don't suppress exceptions
 
     async def start_crawl(self, crawl_options: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -21,15 +73,14 @@ class FirecrawlService:
 
         POST /v2/crawl
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/v2/crawl",
-                json=crawl_options,
-                headers=self.headers,
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return cast(Dict[str, Any], response.json())
+        client = await self._get_client()
+        response = await client.post(
+            f"{self.base_url}/v2/crawl",
+            json=crawl_options,
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return cast(Dict[str, Any], response.json())
 
     async def get_crawl_status(self, crawl_id: str) -> Dict[str, Any]:
         """
@@ -37,14 +88,13 @@ class FirecrawlService:
 
         GET /v2/crawl/{id}
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/v2/crawl/{crawl_id}",
-                headers=self.headers,
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return cast(Dict[str, Any], response.json())
+        client = await self._get_client()
+        response = await client.get(
+            f"{self.base_url}/v2/crawl/{crawl_id}",
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return cast(Dict[str, Any], response.json())
 
     async def cancel_crawl(self, crawl_id: str) -> Dict[str, Any]:
         """
@@ -52,14 +102,13 @@ class FirecrawlService:
 
         DELETE /v2/crawl/{id}
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.delete(
-                f"{self.base_url}/v2/crawl/{crawl_id}",
-                headers=self.headers,
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return cast(Dict[str, Any], response.json())
+        client = await self._get_client()
+        response = await client.delete(
+            f"{self.base_url}/v2/crawl/{crawl_id}",
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return cast(Dict[str, Any], response.json())
 
     async def scrape_url(self, url: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
@@ -71,15 +120,14 @@ class FirecrawlService:
         if options:
             payload.update(options)
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/v2/scrape",
-                json=payload,
-                headers=self.headers,
-                timeout=60.0,
-            )
-            response.raise_for_status()
-            return cast(Dict[str, Any], response.json())
+        client = await self._get_client()
+        response = await client.post(
+            f"{self.base_url}/v2/scrape",
+            json=payload,
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        return cast(Dict[str, Any], response.json())
 
     async def map_url(self, url: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
@@ -91,15 +139,14 @@ class FirecrawlService:
         if options:
             payload.update(options)
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/v2/map",
-                json=payload,
-                headers=self.headers,
-                timeout=60.0,
-            )
-            response.raise_for_status()
-            return cast(Dict[str, Any], response.json())
+        client = await self._get_client()
+        response = await client.post(
+            f"{self.base_url}/v2/map",
+            json=payload,
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        return cast(Dict[str, Any], response.json())
 
     async def search_web(self, query: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """
@@ -111,15 +158,14 @@ class FirecrawlService:
         if options:
             payload.update(options)
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/v2/search",
-                json=payload,
-                headers=self.headers,
-                timeout=60.0,
-            )
-            response.raise_for_status()
-            return cast(Dict[str, Any], response.json())
+        client = await self._get_client()
+        response = await client.post(
+            f"{self.base_url}/v2/search",
+            json=payload,
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        return cast(Dict[str, Any], response.json())
 
     async def extract_data(
         self, urls: list[str], schema: Dict[str, Any], options: Dict[str, Any] | None = None
@@ -138,12 +184,11 @@ class FirecrawlService:
         if options:
             payload.update(options)
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/v2/extract",
-                json=payload,
-                headers=self.headers,
-                timeout=90.0,
-            )
-            response.raise_for_status()
-            return cast(Dict[str, Any], response.json())
+        client = await self._get_client()
+        response = await client.post(
+            f"{self.base_url}/v2/extract",
+            json=payload,
+            timeout=90.0,
+        )
+        response.raise_for_status()
+        return cast(Dict[str, Any], response.json())

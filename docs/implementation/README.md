@@ -5,7 +5,7 @@ This directory contains the complete 14-week implementation plan for transformin
 ## 📚 Documentation Structure
 
 ### Main Overview
-- **[IMPLEMENTATION_PLAN.md](../../IMPLEMENTATION_PLAN.md)** - Executive summary, phases overview, timeline, success metrics
+- **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** - Executive summary, phases overview, timeline, success metrics
 
 ### Detailed Phase Plans
 - **[PHASE_0_TESTING.md](PHASE_0_TESTING.md)** ✅ - Testing foundation (Weeks 1-2) - **MUST DO FIRST**

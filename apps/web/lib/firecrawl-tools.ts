@@ -4,6 +4,12 @@ import axios from "axios";
 
 const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4400";
 
+// Crawl defaults (configurable via environment variables)
+const DEFAULT_MAX_DEPTH = parseInt(process.env.NEXT_PUBLIC_CRAWL_MAX_DEPTH || "3", 10);
+const DEFAULT_MAX_PAGES = parseInt(process.env.NEXT_PUBLIC_CRAWL_MAX_PAGES || "100", 10);
+const MAX_DEPTH_LIMIT = parseInt(process.env.NEXT_PUBLIC_CRAWL_MAX_DEPTH_LIMIT || "10", 10);
+const MAX_PAGES_LIMIT = parseInt(process.env.NEXT_PUBLIC_CRAWL_MAX_PAGES_LIMIT || "1000", 10);
+
 /**
  * Custom MCP server providing Firecrawl and GraphRAG tools to Claude.
  * 
@@ -198,15 +204,15 @@ export const firecrawlServer = createSdkMcpServer({
       "Start an async crawl job to process an entire website. Pages are automatically embedded and stored in Qdrant for later querying. Use this when the user wants to index a whole site into the knowledge base.",
       {
         url: z.string().url().describe("The website URL to crawl"),
-        max_depth: z.number().default(2).describe("Maximum crawl depth (1-5)"),
-        max_pages: z.number().default(10).describe("Maximum number of pages to crawl (1-100)")
+        max_depth: z.number().default(DEFAULT_MAX_DEPTH).describe(`Maximum crawl depth (1-${MAX_DEPTH_LIMIT})`),
+        max_pages: z.number().default(DEFAULT_MAX_PAGES).describe(`Maximum number of pages to crawl (1-${MAX_PAGES_LIMIT})`)
       },
       async (args) => {
         try {
           const response = await axios.post(`${backendUrl}/api/v1/crawl/`, {
             url: args.url,
-            maxDepth: Math.min(Math.max(args.max_depth, 1), 5),
-            limit: Math.min(Math.max(args.max_pages, 1), 100)
+            maxDiscoveryDepth: Math.min(Math.max(args.max_depth, 1), MAX_DEPTH_LIMIT),
+            limit: Math.min(Math.max(args.max_pages, 1), MAX_PAGES_LIMIT)
           }, { timeout: 30000 });
           
           const jobId = response.data.id || response.data.jobId;

@@ -9,15 +9,27 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.api.v1.router import api_router
 from app.db.database import init_db, close_db
+from app.services.firecrawl import FirecrawlService
+from app.dependencies import set_firecrawl_service, clear_firecrawl_service
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events."""
-    # Startup: Initialize database
+    """
+    Application lifespan manager with proper resource cleanup.
+    """
+    # Startup: Initialize services
+    logger.info("🚀 Starting GraphRAG API...")
+    
+    # Initialize database
     await init_db()
+    
+    # Initialize FirecrawlService singleton
+    firecrawl_service = FirecrawlService()
+    set_firecrawl_service(firecrawl_service)
+    logger.info("✅ FirecrawlService initialized")
 
     # Validate critical service configuration
     if not settings.FIRECRAWL_URL:
@@ -28,10 +40,41 @@ async def lifespan(app: FastAPI):
         logger.warning("QDRANT_URL not configured - RAG features will fail")
     if not settings.TEI_URL:
         logger.warning("TEI_URL not configured - embeddings generation will fail")
+    
+    # Log language filtering configuration
+    if settings.ENABLE_LANGUAGE_FILTERING:
+        logger.info(
+            f"🌍 Language filtering ENABLED: "
+            f"allowed={settings.allowed_languages_list}, "
+            f"mode={settings.LANGUAGE_FILTER_MODE}"
+        )
+    else:
+        logger.info("🌍 Language filtering DISABLED - processing all languages")
+    
+    # Log streaming configuration
+    if settings.ENABLE_STREAMING_PROCESSING:
+        logger.info("⚡ Streaming processing ENABLED - pages processed immediately")
+    else:
+        logger.info("📦 Batch processing ENABLED - pages processed at crawl completion")
 
     yield
-    # Shutdown: Close database connections
+    
+    # Shutdown: Clean up resources
+    logger.info("🛑 Shutting down GraphRAG API...")
+    
+    # Close FirecrawlService
+    try:
+        await firecrawl_service.close()
+        logger.info("✅ FirecrawlService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing FirecrawlService: {e}")
+    finally:
+        clear_firecrawl_service()
+    
+    # Close database connections
     await close_db()
+    
+    logger.info("👋 GraphRAG API shutdown complete")
 
 
 app = FastAPI(

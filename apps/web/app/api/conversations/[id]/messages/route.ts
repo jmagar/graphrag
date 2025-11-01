@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { withRateLimit, getRateLimiter } from '@/lib/apiMiddleware';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4400';
 const FETCH_TIMEOUT = 30000; // 30 seconds
@@ -13,7 +14,7 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
+async function handlePOST(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     
@@ -82,3 +83,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+// Apply rate limiting wrapper
+export const POST = withRateLimit(
+  getRateLimiter('message'),
+  handlePOST
+);

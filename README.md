@@ -1,4 +1,6 @@
-# GraphRAG Monorepo
+# GraphRAG
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)# GraphRAG Monorepo
 
 A complete GraphRAG (Retrieval-Augmented Generation) system with knowledge graph-powered retrieval, web crawling, vector search, and LLM-powered responses. Features a modern chat interface with Mandalorian theme.
 

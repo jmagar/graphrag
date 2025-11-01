@@ -2,14 +2,14 @@
 Crawl management endpoints using Firecrawl v2 API.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, Dict, Any, List
 from app.services.firecrawl import FirecrawlService
 from app.core.config import settings
+from app.dependencies import get_firecrawl_service
 
 router = APIRouter()
-firecrawl_service = FirecrawlService()
 
 
 class CrawlRequest(BaseModel):
@@ -46,7 +46,11 @@ class CrawlStatusResponse(BaseModel):
 
 
 @router.post("/", response_model=CrawlResponse)
-async def start_crawl(request: CrawlRequest, background_tasks: BackgroundTasks):
+async def start_crawl(
+    request: CrawlRequest,
+    background_tasks: BackgroundTasks,
+    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
+):
     """
     Start a new crawl job using Firecrawl v2 API.
 
@@ -77,7 +81,7 @@ async def start_crawl(request: CrawlRequest, background_tasks: BackgroundTasks):
         if request.scrapeOptions:
             crawl_options["scrapeOptions"] = request.scrapeOptions
 
-        # Start the crawl
+        # Start the crawl using singleton service
         result = await firecrawl_service.start_crawl(crawl_options)
 
         crawl_id = result["id"]
@@ -93,7 +97,10 @@ async def start_crawl(request: CrawlRequest, background_tasks: BackgroundTasks):
 
 
 @router.get("/{crawl_id}", response_model=CrawlStatusResponse)
-async def get_crawl_status(crawl_id: str):
+async def get_crawl_status(
+    crawl_id: str,
+    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
+):
     """
     Get the status of a crawl job.
 
@@ -107,7 +114,10 @@ async def get_crawl_status(crawl_id: str):
 
 
 @router.delete("/{crawl_id}")
-async def cancel_crawl(crawl_id: str):
+async def cancel_crawl(
+    crawl_id: str,
+    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
+):
     """Cancel a running crawl job."""
     try:
         await firecrawl_service.cancel_crawl(crawl_id)

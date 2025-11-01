@@ -13,20 +13,29 @@ import os
 import pytest
 from httpx import AsyncClient, ASGITransport
 from typing import AsyncGenerator, Dict, Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 # Set required environment variables before importing app modules
 os.environ.setdefault("FIRECRAWL_URL", "http://mock-firecrawl:4200")
 os.environ.setdefault("FIRECRAWL_API_KEY", "test-api-key")
+os.environ.setdefault("DEBUG", "true")  # Allow tests to run without webhook secret
 os.environ.setdefault("QDRANT_URL", "http://mock-qdrant:6333")
 os.environ.setdefault("TEI_URL", "http://mock-tei:8080")
 os.environ.setdefault("OLLAMA_URL", "http://mock-ollama:11434")
 os.environ.setdefault("WEBHOOK_BASE_URL", "http://test:4400")
+os.environ.setdefault("REDIS_HOST", "localhost")
+os.environ.setdefault("REDIS_PORT", "6379")
 
-from app.main import app
-from app.db.models import Base
+# Mock service initialization to prevent actual connections during imports
+mock_qdrant = MagicMock()
+mock_qdrant.get_collections.return_value = MagicMock(collections=[])
+
+with patch("app.services.vector_db.QdrantClient", return_value=mock_qdrant):
+    with patch("app.services.embeddings.httpx.AsyncClient"):
+        from app.main import app
+        from app.db.models import Base
 
 
 @pytest.fixture(scope="session")
@@ -176,6 +185,7 @@ def sample_webhook_crawl_page() -> Dict[str, Any]:
                 "sourceURL": "https://example.com/page1",
                 "title": "Example Page",
                 "description": "This is an example page",
+                "statusCode": 200,
             },
         },
     }
@@ -195,11 +205,11 @@ def sample_webhook_crawl_completed() -> Dict[str, Any]:
         "data": [
             {
                 "markdown": "# Page 1",
-                "metadata": {"sourceURL": "https://example.com/page1", "title": "Page 1"},
+                "metadata": {"sourceURL": "https://example.com/page1", "title": "Page 1", "statusCode": 200},
             },
             {
                 "markdown": "# Page 2",
-                "metadata": {"sourceURL": "https://example.com/page2", "title": "Page 2"},
+                "metadata": {"sourceURL": "https://example.com/page2", "title": "Page 2", "statusCode": 200},
             },
         ],
     }
