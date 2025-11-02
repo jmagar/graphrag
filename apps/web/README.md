@@ -2,7 +2,9 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+> **⚠️ Known Issue**: Production builds (`npm run build`) fail due to a Next.js 16.0.1 framework bug ([#85668](https://github.com/vercel/next.js/issues/85668)). **Development mode works perfectly** and should be used for all development. This will be resolved in a future Next.js release.
+
+Run the development server:
 
 ```bash
 npm run dev

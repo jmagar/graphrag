@@ -16,6 +16,11 @@ const messageRateLimiter = new RateLimiter({
   windowMs: 10000, // Per 10 seconds
 });
 
+const claudeChatRateLimiter = new RateLimiter({
+  maxRequests: 10, // Max 10 Claude API calls
+  windowMs: 60000, // Per minute
+});
+
 /**
  * Get client identifier from request
  */
@@ -34,48 +39,62 @@ function getClientId(request: NextRequest): string {
 
 /**
  * Apply rate limiting to a request
+ * Supports both handlers with and without context parameters
  */
-export function withRateLimit(
+export function withRateLimit<T extends Response | NextResponse, C = unknown>(
   limiter: RateLimiter,
-  handler: (request: NextRequest, context?: unknown) => Promise<NextResponse>
+  handler: (request: NextRequest, context: C) => Promise<T>
+): (request: NextRequest, context: C) => Promise<NextResponse | T>;
+
+export function withRateLimit<T extends Response | NextResponse>(
+  limiter: RateLimiter,
+  handler: (request: NextRequest) => Promise<T>
+): (request: NextRequest) => Promise<NextResponse | T>;
+
+export function withRateLimit<T extends Response | NextResponse, C = unknown>(
+  limiter: RateLimiter,
+  handler: (request: NextRequest, context?: C) => Promise<T>
 ) {
-  return async (request: NextRequest, context?: unknown): Promise<NextResponse> => {
+  return async (request: NextRequest, context?: C): Promise<NextResponse | T> => {
     const clientId = getClientId(request);
     const { allowed, retryAfter } = limiter.check(clientId);
 
     if (!allowed) {
       console.warn(`Rate limit exceeded for client: ${clientId}`);
+      const retryAfterSeconds = retryAfter || 60; // Default to 60 seconds if undefined
       return NextResponse.json(
         { 
           error: 'Rate limit exceeded',
-          retryAfter,
-          message: `Too many requests. Please try again in ${retryAfter} seconds.`
+          retryAfter: retryAfterSeconds,
+          message: `Too many requests. Please try again in ${retryAfterSeconds} seconds.`
         },
         { 
           status: 429,
           headers: {
-            'Retry-After': String(retryAfter),
+            'Retry-After': String(retryAfterSeconds),
             'X-RateLimit-Limit': '10',
             'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': String(Date.now() + (retryAfter * 1000))
+            'X-RateLimit-Reset': String(Date.now() + (retryAfterSeconds * 1000))
           }
         }
       );
     }
 
-    return handler(request, context);
+    return handler(request, context as C);
   };
 }
 
 /**
  * Get appropriate rate limiter for endpoint
  */
-export function getRateLimiter(endpoint: 'conversation' | 'message'): RateLimiter {
+export function getRateLimiter(endpoint: 'conversation' | 'message' | 'claude-chat'): RateLimiter {
   switch (endpoint) {
     case 'conversation':
       return conversationRateLimiter;
     case 'message':
       return messageRateLimiter;
+    case 'claude-chat':
+      return claudeChatRateLimiter;
     default:
       return conversationRateLimiter;
   }

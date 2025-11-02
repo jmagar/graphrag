@@ -10,7 +10,20 @@ from app.core.config import settings
 from app.api.v1.router import api_router
 from app.db.database import init_db, close_db
 from app.services.firecrawl import FirecrawlService
-from app.dependencies import set_firecrawl_service, clear_firecrawl_service
+from app.services.vector_db import VectorDBService
+from app.services.embeddings import EmbeddingsService
+from app.services.llm import LLMService
+from app.services.redis_service import RedisService
+from app.services.language_detection import LanguageDetectionService
+from app.dependencies import (
+    set_firecrawl_service, clear_firecrawl_service,
+    set_vector_db_service, clear_vector_db_service,
+    set_embeddings_service, clear_embeddings_service,
+    set_llm_service, clear_llm_service,
+    set_redis_service, clear_redis_service,
+    set_language_detection_service, clear_language_detection_service,
+    clear_all_services
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +39,31 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_db()
     
-    # Initialize FirecrawlService singleton
+    # Initialize all service singletons
     firecrawl_service = FirecrawlService()
     set_firecrawl_service(firecrawl_service)
     logger.info("✅ FirecrawlService initialized")
+    
+    vector_db_service = VectorDBService()
+    await vector_db_service.initialize()
+    set_vector_db_service(vector_db_service)
+    logger.info("✅ VectorDBService initialized")
+    
+    embeddings_service = EmbeddingsService()
+    set_embeddings_service(embeddings_service)
+    logger.info("✅ EmbeddingsService initialized")
+    
+    llm_service = LLMService()
+    set_llm_service(llm_service)
+    logger.info("✅ LLMService initialized")
+    
+    redis_service = RedisService()
+    set_redis_service(redis_service)
+    logger.info("✅ RedisService initialized")
+    
+    lang_service = LanguageDetectionService()
+    set_language_detection_service(lang_service)
+    logger.info("✅ LanguageDetectionService initialized")
 
     # Validate critical service configuration
     if not settings.FIRECRAWL_URL:
@@ -62,14 +96,27 @@ async def lifespan(app: FastAPI):
     # Shutdown: Clean up resources
     logger.info("🛑 Shutting down GraphRAG API...")
     
-    # Close FirecrawlService
+    # Close all services
     try:
         await firecrawl_service.close()
         logger.info("✅ FirecrawlService closed")
     except Exception as e:
         logger.error(f"❌ Error closing FirecrawlService: {e}")
-    finally:
-        clear_firecrawl_service()
+    
+    try:
+        await vector_db_service.close()
+        logger.info("✅ VectorDBService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing VectorDBService: {e}")
+    
+    try:
+        await redis_service.close()
+        logger.info("✅ RedisService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing RedisService: {e}")
+    
+    # Clear all service singletons
+    clear_all_services()
     
     # Close database connections
     await close_db()

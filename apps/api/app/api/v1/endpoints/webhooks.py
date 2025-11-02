@@ -18,6 +18,8 @@ from app.models import (
     WebhookCrawlCompleted,
     FirecrawlPageData,
 )
+from app.dependencies import get_redis_service, get_language_detection_service
+from fastapi import Depends
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,9 +48,7 @@ def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> boo
 
     return hmac.compare_digest(expected, signature)
 
-# Initialize services
-redis_service = RedisService()
-lang_service = LanguageDetectionService()
+# Services will be injected via Depends()
 
 
 def _validate_webhook_security() -> None:
@@ -89,7 +89,12 @@ async def process_crawled_page(page_data: FirecrawlPageData):
 
 
 @router.post("/firecrawl")
-async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks):
+async def firecrawl_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    redis: RedisService = Depends(get_redis_service),
+    lang: LanguageDetectionService = Depends(get_language_detection_service)
+):
     """
     Webhook endpoint for Firecrawl callbacks.
 
@@ -160,7 +165,7 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
             
             # Language filtering (if enabled) - BEFORE processing
             if settings.ENABLE_LANGUAGE_FILTERING and content:
-                detected_lang = lang_service.detect_language(content)
+                detected_lang = lang.detect_language(content)
                 
                 # Check if language is allowed
                 is_allowed = (
@@ -174,7 +179,7 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
                     
                     # Mark as processed so we skip it in crawl.completed too
                     if crawl_id and source_url:
-                        await redis_service.mark_page_processed(crawl_id, source_url)
+                        await redis.mark_page_processed(crawl_id, source_url)
                     
                     return {"status": "filtered", "language": detected_lang}
                 else:
@@ -182,7 +187,7 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
             
             # Track this page as processed (for deduplication in crawl.completed)
             if crawl_id and source_url:
-                await redis_service.mark_page_processed(crawl_id, source_url)
+                await redis.mark_page_processed(crawl_id, source_url)
                 logger.debug(f"Marked page as processed: {source_url}")
             
             # Process immediately if streaming is enabled
@@ -215,14 +220,14 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
                         continue
 
                     # Check if this page was already processed during streaming
-                    if await redis_service.is_page_processed(crawl_id, source_url):
+                    if await redis.is_page_processed(crawl_id, source_url):
                         skipped_count += 1
                         logger.debug(f"Skipping already-processed page: {source_url}")
                         continue
 
                     # Language filtering (if enabled)
                     if settings.ENABLE_LANGUAGE_FILTERING:
-                        detected_lang = lang_service.detect_language(content)
+                        detected_lang = lang.detect_language(content)
                         
                         # Check if language is allowed
                         is_allowed = (
@@ -236,7 +241,7 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
                             logger.info(f"🚫 FILTERED (batch, {detected_lang}): {source_url}")
                             
                             # Mark as processed so we don't check again
-                            await redis_service.mark_page_processed(crawl_id, source_url)
+                            await redis.mark_page_processed(crawl_id, source_url)
                             continue
                         else:
                             logger.debug(f"✅ ALLOWED (batch, {detected_lang}): {source_url}")
@@ -276,7 +281,7 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
                     )
                 
                 # Cleanup tracking data
-                await redis_service.cleanup_crawl_tracking(crawl_id)
+                await redis.cleanup_crawl_tracking(crawl_id)
 
             return {
                 "status": "completed",
@@ -290,7 +295,7 @@ async def firecrawl_webhook(request: Request, background_tasks: BackgroundTasks)
             
             # Cleanup tracking data on failure
             if crawl_id:
-                await redis_service.cleanup_crawl_tracking(crawl_id)
+                await redis.cleanup_crawl_tracking(crawl_id)
             
             return {"status": "error", "error": error}
 

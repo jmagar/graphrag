@@ -4,9 +4,19 @@ Dependency injection functions for FastAPI endpoints.
 
 from typing import Optional
 from app.services.firecrawl import FirecrawlService
+from app.services.vector_db import VectorDBService
+from app.services.embeddings import EmbeddingsService
+from app.services.llm import LLMService
+from app.services.redis_service import RedisService
+from app.services.language_detection import LanguageDetectionService
 
 # Global service instances
 _firecrawl_service: Optional[FirecrawlService] = None
+_vector_db_service: Optional[VectorDBService] = None
+_embeddings_service: Optional[EmbeddingsService] = None
+_llm_service: Optional[LLMService] = None
+_redis_service: Optional[RedisService] = None
+_language_detection_service: Optional[LanguageDetectionService] = None
 
 
 def get_firecrawl_service() -> FirecrawlService:
@@ -46,3 +56,119 @@ def clear_firecrawl_service() -> None:
     """
     global _firecrawl_service
     _firecrawl_service = None
+
+
+# VectorDBService dependency functions
+def get_vector_db_service() -> VectorDBService:
+    """Get the singleton VectorDBService instance."""
+    global _vector_db_service
+    if _vector_db_service is None:
+        raise RuntimeError("VectorDBService not initialized. Application may not be started.")
+    return _vector_db_service
+
+
+def set_vector_db_service(service: VectorDBService) -> None:
+    """Set the singleton VectorDBService instance."""
+    global _vector_db_service
+    _vector_db_service = service
+
+
+def clear_vector_db_service() -> None:
+    """Clear the singleton VectorDBService instance."""
+    global _vector_db_service
+    _vector_db_service = None
+
+
+# EmbeddingsService dependency functions
+def get_embeddings_service() -> EmbeddingsService:
+    """Get the singleton EmbeddingsService instance."""
+    global _embeddings_service
+    if _embeddings_service is None:
+        raise RuntimeError("EmbeddingsService not initialized. Application may not be started.")
+    return _embeddings_service
+
+
+def set_embeddings_service(service: EmbeddingsService) -> None:
+    """Set the singleton EmbeddingsService instance."""
+    global _embeddings_service
+    _embeddings_service = service
+
+
+def clear_embeddings_service() -> None:
+    """Clear the singleton EmbeddingsService instance."""
+    global _embeddings_service
+    _embeddings_service = None
+
+
+# LLMService dependency functions
+def get_llm_service() -> LLMService:
+    """Get the singleton LLMService instance."""
+    global _llm_service
+    if _llm_service is None:
+        raise RuntimeError("LLMService not initialized. Application may not be started.")
+    return _llm_service
+
+
+def set_llm_service(service: LLMService) -> None:
+    """Set the singleton LLMService instance."""
+    global _llm_service
+    _llm_service = service
+
+
+def clear_llm_service() -> None:
+    """Clear the singleton LLMService instance."""
+    global _llm_service
+    _llm_service = None
+
+
+# RedisService dependency functions
+def get_redis_service() -> RedisService:
+    """Get the singleton RedisService instance."""
+    global _redis_service
+    if _redis_service is None:
+        raise RuntimeError("RedisService not initialized. Application may not be started.")
+    return _redis_service
+
+
+def set_redis_service(service: RedisService) -> None:
+    """Set the singleton RedisService instance."""
+    global _redis_service
+    _redis_service = service
+
+
+def clear_redis_service() -> None:
+    """Clear the singleton RedisService instance."""
+    global _redis_service
+    _redis_service = None
+
+
+# LanguageDetectionService dependency functions
+def get_language_detection_service() -> LanguageDetectionService:
+    """Get the singleton LanguageDetectionService instance."""
+    global _language_detection_service
+    if _language_detection_service is None:
+        raise RuntimeError("LanguageDetectionService not initialized. Application may not be started.")
+    return _language_detection_service
+
+
+def set_language_detection_service(service: LanguageDetectionService) -> None:
+    """Set the singleton LanguageDetectionService instance."""
+    global _language_detection_service
+    _language_detection_service = service
+
+
+def clear_language_detection_service() -> None:
+    """Clear the singleton LanguageDetectionService instance."""
+    global _language_detection_service
+    _language_detection_service = None
+
+
+# Utility function to clear all services
+def clear_all_services() -> None:
+    """Clear all singleton service instances."""
+    clear_firecrawl_service()
+    clear_vector_db_service()
+    clear_embeddings_service()
+    clear_llm_service()
+    clear_redis_service()
+    clear_language_detection_service()

@@ -85,44 +85,47 @@ export class RateLimiter {
  * Client-side rate limiter with request deduplication
  */
 export class ClientRateLimiter {
-  private timestamps: number[] = [];
+  private requests = new Map<string, number[]>();
   private pendingRequests = new Map<string, Promise<unknown>>();
-  private config: RateLimitConfig;
 
-  constructor(config: RateLimitConfig) {
-    this.config = config;
+  constructor() {
+    // No config needed - uses per-request limits
   }
 
   /**
-   * Check if request is allowed
+   * Check if request is allowed (key-based with custom limits)
    */
-  canMakeRequest(): boolean {
+  isAllowed(key: string, maxRequests: number, windowMs: number): boolean {
     const now = Date.now();
-    const cutoff = now - this.config.windowMs;
+    const cutoff = now - windowMs;
+
+    // Get timestamps for this key
+    let timestamps = this.requests.get(key) || [];
 
     // Remove old timestamps
-    this.timestamps = this.timestamps.filter(ts => ts > cutoff);
+    timestamps = timestamps.filter(ts => ts > cutoff);
 
     // Check if under limit
-    return this.timestamps.length < this.config.maxRequests;
+    if (timestamps.length < maxRequests) {
+      timestamps.push(now);
+      this.requests.set(key, timestamps);
+      return true;
+    }
+
+    return false;
   }
 
   /**
-   * Record a request
+   * Get time until next request is allowed for a specific key
    */
-  recordRequest(): void {
-    this.timestamps.push(Date.now());
-  }
+  getRetryAfter(key: string, windowMs: number): number {
+    const timestamps = this.requests.get(key) || [];
+    if (timestamps.length === 0) return 0;
 
-  /**
-   * Get time until next request is allowed
-   */
-  getRetryAfter(): number {
-    if (this.canMakeRequest()) return 0;
-
-    const oldestTimestamp = this.timestamps[0];
-    const resetTime = oldestTimestamp + this.config.windowMs;
-    return Math.ceil((resetTime - Date.now()) / 1000);
+    const oldestTimestamp = timestamps[0];
+    const resetTime = oldestTimestamp + windowMs;
+    const retryAfter = Math.ceil((resetTime - Date.now()) / 1000);
+    return Math.max(0, retryAfter);
   }
 
   /**
@@ -151,7 +154,7 @@ export class ClientRateLimiter {
    * Reset all limits
    */
   reset(): void {
-    this.timestamps = [];
+    this.requests.clear();
     this.pendingRequests.clear();
   }
 }
@@ -224,3 +227,44 @@ export class CircuitBreaker {
     this.state = 'closed';
   }
 }
+
+/**
+ * Rate Limiting Configuration
+ * 
+ * Defines rate limits for different endpoints and operations.
+ * Client limits are MORE restrictive than server limits to provide
+ * immediate feedback and reduce unnecessary network calls.
+ */
+export const RATE_LIMIT_CONFIG = {
+  // Client-side limits (proactive)
+  CLIENT_CONVERSATION_SAVE: {
+    maxRequests: 3,
+    windowMs: 10000, // 10 seconds
+    rationale: "Prevents rapid-fire saves during UI interactions"
+  },
+  
+  CLIENT_CLAUDE_CHAT: {
+    maxRequests: 5,
+    windowMs: 60000, // 1 minute
+    rationale: "Prevents rapid-fire Claude API calls from draining credits"
+  },
+  
+  // Server-side limits (enforcement)
+  SERVER_CONVERSATION_CREATE: {
+    maxRequests: 10,
+    windowMs: 60000, // 1 minute
+    rationale: "Protects against conversation spam"
+  },
+  
+  SERVER_MESSAGE_SAVE: {
+    maxRequests: 5,
+    windowMs: 10000, // 10 seconds
+    rationale: "Protects against message spam while allowing legitimate bursts"
+  },
+  
+  SERVER_CLAUDE_CHAT: {
+    maxRequests: 10,
+    windowMs: 60000, // 1 minute
+    rationale: "Server-side enforcement for Claude API calls to prevent credit drain"
+  }
+} as const;

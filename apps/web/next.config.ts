@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
   devIndicators: {
     position: "bottom-right",
   },
+  /* Allow dev access from custom domains/network addresses */
+  allowedDevOrigins: [
+    "rag.tootie.tv",
+    "http://rag.tootie.tv",
+    "https://rag.tootie.tv",
+  ],
 };
 
 export default nextConfig;

@@ -3,15 +3,11 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { ClientRateLimiter, CircuitBreaker } from '@/lib/rateLimit';
+import { ClientRateLimiter, CircuitBreaker, RATE_LIMIT_CONFIG } from '@/lib/rateLimit';
 import { useConversationStore } from '@/stores/conversationStore';
 
 // Create singleton instances
-const rateLimiter = new ClientRateLimiter({
-  maxRequests: 3, // Max 3 save operations
-  windowMs: 10000, // Per 10 seconds
-});
-
+const rateLimiter = new ClientRateLimiter();
 const circuitBreaker = new CircuitBreaker(5, 60000); // 5 failures, 1 min reset
 
 interface SaveMessageOptions {
@@ -54,13 +50,16 @@ export function useConversationSave() {
     }
 
     // Check rate limit
-    if (!rateLimiter.canMakeRequest()) {
-      const retryAfter = rateLimiter.getRetryAfter();
-      console.warn(`Rate limit exceeded. Retry after ${retryAfter}s`);
+    const saveKey = 'conversation-save';
+    if (!rateLimiter.isAllowed(
+      saveKey,
+      RATE_LIMIT_CONFIG.CLIENT_CONVERSATION_SAVE.maxRequests,
+      RATE_LIMIT_CONFIG.CLIENT_CONVERSATION_SAVE.windowMs
+    )) {
+      console.warn('Rate limit exceeded for conversation save');
       return { 
         success: false, 
-        reason: 'rate_limited',
-        retryAfter 
+        reason: 'rate_limited'
       };
     }
 
@@ -72,7 +71,6 @@ export function useConversationSave() {
 
     try {
       saveInProgressRef.current = true;
-      rateLimiter.recordRequest();
       lastSaveHashRef.current = hash;
 
       // Execute with circuit breaker protection
@@ -159,7 +157,11 @@ export function useConversationSave() {
   return {
     saveMessages,
     resetLimits,
-    canSave: rateLimiter.canMakeRequest(),
+    canSave: rateLimiter.isAllowed(
+      'conversation-save',
+      RATE_LIMIT_CONFIG.CLIENT_CONVERSATION_SAVE.maxRequests,
+      RATE_LIMIT_CONFIG.CLIENT_CONVERSATION_SAVE.windowMs
+    ),
     circuitState: circuitBreaker.getState()
   };
 }

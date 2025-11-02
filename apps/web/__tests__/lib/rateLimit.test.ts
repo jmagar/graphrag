@@ -100,54 +100,53 @@ describe('RateLimiter (Server-side)', () => {
 
 describe('ClientRateLimiter (Client-side)', () => {
   let clientRateLimiter: ClientRateLimiter;
+  const testKey = 'test-key';
+  const maxRequests = 3;
+  const windowMs = 1000;
 
   beforeEach(() => {
-    clientRateLimiter = new ClientRateLimiter({
-      maxRequests: 3,
-      windowMs: 1000,
-    });
+    clientRateLimiter = new ClientRateLimiter();
   });
 
   it('should allow requests under the limit', () => {
-    expect(clientRateLimiter.canMakeRequest()).toBe(true);
-    clientRateLimiter.recordRequest();
-    
-    expect(clientRateLimiter.canMakeRequest()).toBe(true);
-    clientRateLimiter.recordRequest();
-    
-    expect(clientRateLimiter.canMakeRequest()).toBe(true);
-    clientRateLimiter.recordRequest();
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(true);
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(true);
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(true);
   });
 
   it('should block requests over the limit', () => {
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
+    // Fill quota
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
 
-    expect(clientRateLimiter.canMakeRequest()).toBe(false);
+    // Should be blocked
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(false);
   });
 
   it('should calculate retry after time', () => {
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
+    // Fill quota
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
 
-    const retryAfter = clientRateLimiter.getRetryAfter();
+    const retryAfter = clientRateLimiter.getRetryAfter(testKey, windowMs);
     expect(retryAfter).toBeGreaterThan(0);
     expect(retryAfter).toBeLessThanOrEqual(1);
   });
 
   it('should reset quota after time window', async () => {
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
+    // Fill quota
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
 
-    expect(clientRateLimiter.canMakeRequest()).toBe(false);
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(false);
 
     // Wait for window to expire
     await new Promise(resolve => setTimeout(resolve, 1100));
 
-    expect(clientRateLimiter.canMakeRequest()).toBe(true);
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(true);
   });
 
   it('should deduplicate requests with same key', async () => {
@@ -181,15 +180,16 @@ describe('ClientRateLimiter (Client-side)', () => {
   });
 
   it('should allow manual reset', () => {
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
-    clientRateLimiter.recordRequest();
+    // Fill quota
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
+    clientRateLimiter.isAllowed(testKey, maxRequests, windowMs);
 
-    expect(clientRateLimiter.canMakeRequest()).toBe(false);
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(false);
 
     clientRateLimiter.reset();
 
-    expect(clientRateLimiter.canMakeRequest()).toBe(true);
+    expect(clientRateLimiter.isAllowed(testKey, maxRequests, windowMs)).toBe(true);
   });
 });
 

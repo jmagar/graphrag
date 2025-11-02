@@ -2,8 +2,9 @@
 Qdrant vector database service.
 """
 
+import logging
 from typing import List, Dict, Any, Optional
-from qdrant_client import QdrantClient
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
     VectorParams,
@@ -15,27 +16,59 @@ from qdrant_client.models import (
 )
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 class VectorDBService:
-    """Service for interacting with Qdrant vector database."""
+    """Service for interacting with Qdrant vector database (async)."""
 
     def __init__(self):
-        self.client = QdrantClient(url=settings.QDRANT_URL)
+        """
+        Initialize the service without blocking operations.
+        
+        IMPORTANT: Call initialize() after instantiation to ensure
+        collection exists before using the service.
+        """
+        self.client: Optional[AsyncQdrantClient] = None
         self.collection_name = settings.QDRANT_COLLECTION
-        self._ensure_collection()
 
-    def _ensure_collection(self):
-        """Ensure the collection exists, create if not."""
-        collections = self.client.get_collections().collections
-        collection_names = [c.name for c in collections]
+    async def initialize(self) -> None:
+        """
+        Initialize the async client and ensure collection exists.
+        
+        MUST be called after instantiation via lifespan manager.
+        Safe to call multiple times (idempotent).
+        """
+        if self.client is None:
+            self.client = AsyncQdrantClient(url=settings.QDRANT_URL)
+            logger.info(f"AsyncQdrantClient created for {settings.QDRANT_URL}")
+        
+        await self._ensure_collection()
+        logger.info(f"✅ VectorDBService initialized with collection: {self.collection_name}")
+
+    async def _ensure_collection(self) -> None:
+        """Ensure the collection exists, create if not (async version)."""
+        if self.client is None:
+            raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
+        
+        collections = await self.client.get_collections()
+        collection_names = [c.name for c in collections.collections]
 
         if self.collection_name not in collection_names:
             # Create collection with appropriate vector size
             # Qwen3-Embedding-0.6B outputs 1024 dimensions
-            self.client.create_collection(
+            await self.client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
             )
+            logger.info(f"Created Qdrant collection: {self.collection_name}")
+
+    async def close(self) -> None:
+        """Close the Qdrant client connection."""
+        if self.client:
+            await self.client.close()
+            self.client = None
+            logger.info("VectorDB client connection closed")
 
     async def upsert_document(
         self,
@@ -53,6 +86,9 @@ class VectorDBService:
             content: The text content
             metadata: Additional metadata (url, title, etc.)
         """
+        if self.client is None:
+            raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
+        
         point = PointStruct(
             id=doc_id,
             vector=embedding,
@@ -62,7 +98,7 @@ class VectorDBService:
             },
         )
 
-        self.client.upsert(
+        await self.client.upsert(
             collection_name=self.collection_name,
             points=[point],
             wait=True,
@@ -88,6 +124,9 @@ class VectorDBService:
         if not documents:
             return
         
+        if self.client is None:
+            raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
+        
         points = [
             PointStruct(
                 id=doc["doc_id"],
@@ -101,7 +140,7 @@ class VectorDBService:
         ]
         
         # Single batch upsert to Qdrant
-        self.client.upsert(
+        await self.client.upsert(
             collection_name=self.collection_name,
             points=points,
             wait=True,  # Wait for write confirmation
@@ -126,6 +165,9 @@ class VectorDBService:
         Returns:
             List of matching documents with scores
         """
+        if self.client is None:
+            raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
+        
         query_filter = None
         if filters:
             conditions: List[Condition] = []
@@ -136,7 +178,7 @@ class VectorDBService:
             if conditions:
                 query_filter = Filter(must=conditions)
 
-        results = self.client.search(
+        results = await self.client.search(
             collection_name=self.collection_name,
             query_vector=query_embedding,
             limit=limit,
@@ -156,7 +198,10 @@ class VectorDBService:
 
     async def delete_document(self, doc_id: str):
         """Delete a document from the vector database."""
-        self.client.delete(
+        if self.client is None:
+            raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
+        
+        await self.client.delete(
             collection_name=self.collection_name,
             points_selector=[doc_id],
             wait=True,
@@ -164,7 +209,10 @@ class VectorDBService:
 
     async def get_collection_info(self) -> Dict[str, Any]:
         """Get information about the collection."""
-        info = self.client.get_collection(collection_name=self.collection_name)
+        if self.client is None:
+            raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
+        
+        info = await self.client.get_collection(collection_name=self.collection_name)
         return {
             "name": self.collection_name,
             "vectors_count": info.indexed_vectors_count,  # Use indexed_vectors_count instead of vectors_count

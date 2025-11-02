@@ -19,6 +19,11 @@ from app.db.models import Conversation, Message
 from app.services.embeddings import EmbeddingsService
 from app.services.vector_db import VectorDBService
 from app.services.llm import LLMService
+from app.dependencies import (
+    get_embeddings_service,
+    get_vector_db_service,
+    get_llm_service
+)
 
 router = APIRouter()
 
@@ -92,7 +97,13 @@ def format_context(search_results: List[dict]) -> str:
 
 
 @router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest, db: AsyncSession = Depends(get_session)):
+async def chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_session),
+    embeddings: EmbeddingsService = Depends(get_embeddings_service),
+    vector_db: VectorDBService = Depends(get_vector_db_service),
+    llm: LLMService = Depends(get_llm_service)
+):
     """
     Chat with RAG system and conversation persistence.
 
@@ -143,23 +154,19 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_session)):
     context = ""
 
     if request.use_rag:
-        embeddings_service = EmbeddingsService()
-        vector_db_service = VectorDBService()
+        # Generate embedding for query (using injected service)
+        query_embedding = await embeddings.generate_embedding(request.message)
 
-        # Generate embedding for query
-        query_embedding = await embeddings_service.generate_embedding(request.message)
-
-        # Search vector database
-        search_results = await vector_db_service.search(
+        # Search vector database (using injected service)
+        search_results = await vector_db.search(
             query_embedding=query_embedding, limit=request.limit
         )
 
         sources = search_results
         context = format_context(search_results)
 
-    # Step 4: Generate LLM response
-    llm_service = LLMService()
-    llm_response = await llm_service.generate_response(query=request.message, context=context)
+    # Step 4: Generate LLM response (using injected service)
+    llm_response = await llm.generate_response(query=request.message, context=context)
 
     # Step 5: Save assistant message with sources
     assistant_message = Message(

@@ -2,17 +2,19 @@
 RAG query endpoints for semantic search and LLM-powered responses.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.services.embeddings import EmbeddingsService
 from app.services.vector_db import VectorDBService
 from app.services.llm import LLMService
+from app.dependencies import (
+    get_embeddings_service,
+    get_vector_db_service,
+    get_llm_service
+)
 
 router = APIRouter()
-embeddings_service = EmbeddingsService()
-vector_db_service = VectorDBService()
-llm_service = LLMService()
 
 
 class QueryRequest(BaseModel):
@@ -44,7 +46,12 @@ class QueryResponse(BaseModel):
 
 
 @router.post("/", response_model=QueryResponse)
-async def query_knowledge_base(request: QueryRequest):
+async def query_knowledge_base(
+    request: QueryRequest,
+    embeddings: EmbeddingsService = Depends(get_embeddings_service),
+    vector_db: VectorDBService = Depends(get_vector_db_service),
+    llm: LLMService = Depends(get_llm_service)
+):
     """
     Query the knowledge base using semantic search and optional LLM generation.
 
@@ -55,10 +62,10 @@ async def query_knowledge_base(request: QueryRequest):
     """
     try:
         # Generate query embedding
-        query_embedding = await embeddings_service.generate_embedding(request.query)
+        query_embedding = await embeddings.generate_embedding(request.query)
 
         # Search vector database
-        search_results = await vector_db_service.search(
+        search_results = await vector_db.search(
             query_embedding=query_embedding,
             limit=request.limit,
             score_threshold=request.score_threshold,
@@ -85,7 +92,7 @@ async def query_knowledge_base(request: QueryRequest):
                     for r in search_results[:3]
                 ]
             )
-            llm_response = await llm_service.generate_response(
+            llm_response = await llm.generate_response(
                 query=request.query,
                 context=context,
             )

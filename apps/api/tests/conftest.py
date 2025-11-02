@@ -29,13 +29,10 @@ os.environ.setdefault("REDIS_HOST", "localhost")
 os.environ.setdefault("REDIS_PORT", "6379")
 
 # Mock service initialization to prevent actual connections during imports
-mock_qdrant = MagicMock()
-mock_qdrant.get_collections.return_value = MagicMock(collections=[])
-
-with patch("app.services.vector_db.QdrantClient", return_value=mock_qdrant):
-    with patch("app.services.embeddings.httpx.AsyncClient"):
-        from app.main import app
-        from app.db.models import Base
+# Note: VectorDBService now uses AsyncQdrantClient and requires initialize() call
+with patch("app.services.embeddings.httpx.AsyncClient"):
+    from app.main import app
+    from app.db.models import Base
 
 
 @pytest.fixture(scope="session")
@@ -273,6 +270,35 @@ def mock_settings(monkeypatch):
     monkeypatch.setenv("TEI_URL", "http://mock-tei:8080")
     monkeypatch.setenv("OLLAMA_URL", "http://mock-ollama:11434")
     monkeypatch.setenv("WEBHOOK_BASE_URL", "http://test:4400")
+
+
+@pytest.fixture(autouse=True)
+def disable_webhook_signature_verification(monkeypatch):
+    """
+    Automatically disable webhook signature verification for all tests by default.
+
+    This fixture runs automatically for all tests (autouse=True) and ensures
+    that webhook endpoints don't require signatures unless explicitly testing
+    signature verification.
+
+    Tests that need to test signature verification should use the
+    'setup_webhook_secret' fixture from test_webhook_e2e.py which will
+    override this by setting the secret after this fixture runs.
+
+    This prevents 401 Unauthorized errors in tests that aren't focused on
+    signature verification functionality.
+    """
+    # Set webhook secret to empty string to disable signature verification
+    # (delenv doesn't work because Settings reads from .env file)
+    monkeypatch.setenv("FIRECRAWL_WEBHOOK_SECRET", "")
+
+    # Force reload settings to pick up the empty secret
+    from app.core import config
+    config.settings = config.Settings()
+
+    # Also patch settings in webhook module since it's already imported
+    from app.api.v1.endpoints import webhooks
+    monkeypatch.setattr(webhooks, "settings", config.settings)
 
 
 # ============================================================================

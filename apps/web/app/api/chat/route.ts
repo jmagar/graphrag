@@ -2,6 +2,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { NextRequest } from "next/server";
 import { firecrawlServer } from "@/lib/firecrawl-tools";
 import { createSSEStreamController } from "@/lib/sse";
+import { withRateLimit, getRateLimiter } from "@/lib/apiMiddleware";
 
 interface ChatRequest {
   message: string;
@@ -11,7 +12,8 @@ interface ChatRequest {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest) {
+// Wrap the handler with rate limiting
+const chatHandler = async (request: NextRequest) => {
   try {
     const body: ChatRequest = await request.json();
     const { message, sessionId } = body;
@@ -25,19 +27,30 @@ export async function POST(request: NextRequest) {
 
     // Create a ReadableStream for SSE (Server-Sent Events)
     const encoder = new TextEncoder();
+    
+    // Add stream timeout protection (120 seconds)
+    const streamTimeoutMs = 120000;
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn('Claude chat stream timeout after 120s');
+      abortController.abort();
+    }, streamTimeoutMs);
+    
     const stream = new ReadableStream({
       async start(controller) {
         const sse = createSSEStreamController(controller, encoder);
         const abortHandler = () => {
+          clearTimeout(timeoutId);
           sse.close();
         };
 
-        if (request.signal.aborted) {
+        if (request.signal.aborted || abortController.signal.aborted) {
           abortHandler();
           return;
         }
 
         request.signal.addEventListener("abort", abortHandler);
+        abortController.signal.addEventListener("abort", abortHandler);
 
         try {
           // Query Claude Agent SDK with MCP tools
@@ -124,7 +137,9 @@ Be concise, helpful, and technical when appropriate.`,
           sse.send(`data: ${errorData}\n\n`);
           sse.close();
         } finally {
+          clearTimeout(timeoutId);
           request.signal.removeEventListener("abort", abortHandler);
+          abortController.signal.removeEventListener("abort", abortHandler);
         }
       },
     });
@@ -144,4 +159,10 @@ Be concise, helpful, and technical when appropriate.`,
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
-}
+};
+
+// Export rate-limited handler
+export const POST = withRateLimit(
+  getRateLimiter('claude-chat'),
+  chatHandler
+);
