@@ -109,10 +109,12 @@ async def query_knowledge_base(
 
 
 @router.get("/collection/info")
-async def get_collection_info():
+async def get_collection_info(
+    vector_db: VectorDBService = Depends(get_vector_db_service)
+):
     """Get information about the vector database collection."""
     try:
-        info = await vector_db_service.get_collection_info()
+        info = await vector_db.get_collection_info()
         return info
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get collection info: {str(e)}")

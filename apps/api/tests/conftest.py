@@ -144,6 +144,108 @@ def mock_llm_service():
 
 
 @pytest.fixture
+def mock_redis_service():
+    """
+    Mock RedisService with pre-configured responses.
+
+    Returns:
+        Mock object with async Redis operations
+    """
+    service = MagicMock()
+    service.is_duplicate = AsyncMock(return_value=False)
+    service.mark_as_processed = AsyncMock(return_value=None)
+    service.get_crawl_status = AsyncMock(return_value=None)
+    service.update_crawl_status = AsyncMock(return_value=None)
+    # Add methods used by webhooks
+    service.mark_page_processed = AsyncMock(return_value=True)
+    service.is_page_processed = AsyncMock(return_value=False)
+    service.cleanup_crawl_tracking = AsyncMock(return_value=True)
+    service.get_processed_count = AsyncMock(return_value=0)
+    return service
+
+
+@pytest.fixture
+def mock_language_detection_service():
+    """
+    Mock LanguageDetectionService with pre-configured responses.
+
+    Returns:
+        Mock object with language detection methods
+    """
+    service = MagicMock()
+    service.detect = AsyncMock(return_value="en")
+    service.is_supported = AsyncMock(return_value=True)
+    # The webhook code calls detect_language (sync method)
+    service.detect_language = MagicMock(return_value="en")
+    return service
+
+
+@pytest.fixture
+def mock_graph_db_service():
+    """
+    Mock GraphDBService with pre-configured responses.
+
+    Returns:
+        Mock object with entity and relationship methods
+    """
+    service = MagicMock()
+    service.get_entity_by_id = AsyncMock(return_value=None)
+    service.find_connected_entities = AsyncMock(return_value=[])
+    service.search_entities = AsyncMock(return_value=[])
+    service.create_entity = AsyncMock(return_value=None)
+    service.create_relationship = AsyncMock(return_value=None)
+    return service
+
+
+@pytest.fixture
+def mock_entity_extractor():
+    """
+    Mock EntityExtractor with pre-configured responses.
+
+    Returns:
+        Mock object with extract_entities method
+    """
+    service = MagicMock()
+    service.extract_entities = AsyncMock(return_value=[])
+    return service
+
+
+@pytest.fixture
+def mock_relationship_extractor():
+    """
+    Mock RelationshipExtractor with pre-configured responses.
+
+    Returns:
+        Mock object with extract_relationships method
+    """
+    service = MagicMock()
+    service.extract_relationships = AsyncMock(return_value=[])
+    return service
+
+
+@pytest.fixture
+def mock_hybrid_query_engine():
+    """
+    Mock HybridQueryEngine with pre-configured responses.
+
+    Returns:
+        Mock object with hybrid_search method
+    """
+    service = MagicMock()
+    service.hybrid_search = AsyncMock(
+        return_value={
+            "query": "",
+            "query_entities": [],
+            "vector_results": [],
+            "graph_results": [],
+            "combined_results": [],
+            "retrieval_strategy": "vector"
+        }
+    )
+    return service
+
+
+@pytest.fixture
 def sample_crawl_page_data() -> Dict[str, Any]:
     """
     Sample page data as received from Firecrawl webhook (crawl.page event).

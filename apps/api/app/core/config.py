@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./graphrag.db"
 
+    # Neo4j Graph Database
+    NEO4J_URI: str = "bolt://localhost:7688"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "testpassword123"
+
     # Feature Flags
     ENABLE_STREAMING_PROCESSING: bool = True
     ENABLE_LANGUAGE_FILTERING: bool = False  # Disabled by default for safety

@@ -26,8 +26,21 @@ from pydantic import ValidationError
 import redis.asyncio as redis
 import redis.exceptions
 
+# Import app and dependencies for DI overrides
+from app.main import app
+from app.dependencies import get_redis_service, get_language_detection_service
+
 # Enable anyio for all tests in this module
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def setup_di_overrides(mock_redis_service, mock_language_detection_service):
+    """Automatically setup DI overrides for all tests in this module."""
+    app.dependency_overrides[get_redis_service] = lambda: mock_redis_service
+    app.dependency_overrides[get_language_detection_service] = lambda: mock_language_detection_service
+    yield
+    app.dependency_overrides.clear()
 
 
 # ============================================================================
@@ -980,9 +993,8 @@ class TestBackgroundTaskErrors:
 class TestWebhookRedisIntegration:
     """Test error scenarios in webhook + Redis integration."""
 
-    @patch("app.api.v1.endpoints.webhooks.redis_service")
     async def test_redis_unavailable_during_page_tracking(
-        self, mock_redis_service, test_client: AsyncClient
+        self, test_client: AsyncClient, mock_redis_service
     ):
         """Test webhook continues processing when Redis unavailable."""
         # Arrange
@@ -1007,9 +1019,8 @@ class TestWebhookRedisIntegration:
         # Assert: Should succeed despite Redis failure
         assert response.status_code == 200
 
-    @patch("app.api.v1.endpoints.webhooks.redis_service")
     async def test_redis_cleanup_failure_on_crawl_failed(
-        self, mock_redis_service, test_client: AsyncClient
+        self, test_client: AsyncClient, mock_redis_service
     ):
         """Test that webhook succeeds even if Redis cleanup fails."""
         # Arrange
@@ -1029,9 +1040,8 @@ class TestWebhookRedisIntegration:
         data = response.json()
         assert data["status"] == "error"
 
-    @patch("app.api.v1.endpoints.webhooks.redis_service")
     async def test_redis_is_page_processed_error_during_deduplication(
-        self, mock_redis_service, test_client: AsyncClient
+        self, test_client: AsyncClient, mock_redis_service
     ):
         """Test that unhandled Redis exceptions are properly raised as 500 errors."""
         # Arrange: Mock raises exception that bypasses service error handling

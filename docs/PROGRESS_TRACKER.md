@@ -1,8 +1,8 @@
 
 # GraphRAG Development Progress Tracker
 
-**Last Updated**: 2025-11-01 18:00 UTC  
-**Current Phase**: Phase 1 - Critical Infrastructure Fixes (100% Complete)
+**Last Updated**: 2025-11-02 16:00 UTC  
+**Current Phase**: Phase 2 - GraphRAG Knowledge Graph Core (83% Complete)
 
 ---
 
@@ -13,7 +13,7 @@
 | **Phase 0** | ✅ Complete | 100% | ~8 hours | 181 | Backend 81%, Frontend 16% |
 | **Phase 1** | ✅ Complete | 100% | ~6 hours | 106 backend | Backend 85%+ |
 | **Phase 1B** | ✅ Complete | 100% | ~5 hours | 20 new tests | Backend 48%, Frontend stable |
-| **Phase 2** | ⏳ Pending | 0% | - | - | - |
+| **Phase 2** | 🔄 In Progress | 83% | ~6.5 hours | 54/62 tests | New services 77% avg |
 | **Phase 3** | ⏳ Pending | 0% | - | - | - |
 
 ---
@@ -371,10 +371,240 @@ All features built with **RED-GREEN-REFACTOR**:
 
 ---
 
-## ⏳ Phase 2: Frontend Features (PENDING)
+## 🔄 Phase 2: GraphRAG Knowledge Graph Core (IN PROGRESS - 83%)
+
+**Goal**: Build GraphRAG system combining vector search + knowledge graph  
+**Status**: 🔄 In Progress (5 of 6 deliverables complete)  
+**Duration**: ~6.5 hours (4.5h previous session + 2h current)  
+**Started**: 2025-11-02  
+**Methodology**: Test-Driven Development (TDD)
+
+### Deliverables
+
+#### ✅ Deliverable 1: Entity Extraction Pipeline (COMPLETE)
+**Duration**: 1.5 hours  
+**Tests**: 10/10 passing  
+**Coverage**: 73%
+
+**Implementation**:
+- [x] spaCy NER integration (en_core_web_lg model)
+- [x] 15+ entity types (PERSON, ORG, GPE, LOCATION, PRODUCT, EVENT, etc.)
+- [x] Async extraction with confidence scores
+- [x] Entity position tracking (character offsets)
+
+**Files**:
+- `apps/api/app/services/entity_extractor.py` (146 lines)
+- `apps/api/tests/services/test_entity_extractor.py` (10 tests)
+
+#### ✅ Deliverable 2: Neo4j Graph Database Service (COMPLETE)
+**Duration**: 2 hours  
+**Tests**: 11/11 passing  
+**Coverage**: 68%
+
+**Implementation**:
+- [x] Async Neo4j driver (AsyncGraphDatabase)
+- [x] Entity CRUD operations
+- [x] Relationship management
+- [x] Graph traversal (configurable depth)
+- [x] Entity search by text
+- [x] JSON metadata serialization
+- [x] Automatic index creation
+
+**Graph Schema**:
+```cypher
+(:Entity {id, type, text, metadata, updated_at})
+Relationships: WORKS_AT, LOCATED_IN, COLLABORATES_WITH, etc.
+Indexes: entity_id, entity_text, entity_type
+```
+
+**Files**:
+- `apps/api/app/services/graph_db.py` (378 lines)
+- `apps/api/tests/services/test_graph_db.py` (11 tests)
+
+**Configuration**: Neo4j test container on port 7688
+
+#### ✅ Deliverable 3: Relationship Extraction (COMPLETE)
+**Duration**: 1 hour  
+**Tests**: 10/10 passing  
+**Coverage**: 73%
+
+**Implementation**:
+- [x] LLM-based relationship extraction
+- [x] 20+ relationship types (employment, location, collaboration, creation, etc.)
+- [x] Structured JSON prompt engineering
+- [x] Entity validation
+- [x] Graceful error handling
+
+**Files**:
+- `apps/api/app/services/relationship_extractor.py` (235 lines)
+- `apps/api/tests/services/test_relationship_extractor.py` (10 tests)
+
+#### ✅ Deliverable 4: Hybrid Query System (COMPLETE)
+**Duration**: 2 hours  
+**Tests**: 11/11 passing  
+**Coverage**: 95% ⭐
+
+**Implementation**:
+- [x] Orchestrates vector search (Qdrant) + graph traversal (Neo4j)
+- [x] Parallel query execution
+- [x] Result combination with deduplication
+- [x] Hybrid scoring algorithm (60% vector, 40% graph distance)
+- [x] Configurable reranking
+- [x] Performance optimized (<1 second target)
+
+**Query Flow**:
+1. Extract entities from query
+2. Vector search (always performed)
+3. Graph search (if entities found)
+4. Combine & deduplicate results
+5. Rerank by hybrid score
+
+**Files**:
+- `apps/api/app/services/hybrid_query.py` (228 lines)
+- `apps/api/tests/services/test_hybrid_query.py` (11 tests)
+
+**Performance**: ✅ Meets <1 second target
+
+#### ✅ Deliverable 5: Graph API Endpoints (COMPLETE)
+**Duration**: 2 hours  
+**Tests**: 12/12 passing  
+**Coverage**: 79%
+
+**Implementation**:
+- [x] POST `/api/v1/graph/search` - Hybrid search
+- [x] GET `/api/v1/graph/entities/{entity_id}/connections` - Get connected entities
+- [x] GET `/api/v1/graph/entities/search` - Search entities
+- [x] Pydantic request/response models
+- [x] Dependency injection for services
+- [x] Comprehensive error handling
+- [x] OpenAPI documentation
+
+**Files**:
+- `apps/api/app/api/v1/endpoints/graph.py` (321 lines)
+- `apps/api/tests/api/v1/endpoints/test_graph.py` (270 lines, 12 tests)
+- `apps/api/app/api/v1/router.py` (updated)
+- `apps/api/tests/conftest.py` (added mock fixtures)
+
+#### 🔄 Deliverable 6: Webhook Enhancement (IN PROGRESS - 60%)
+**Estimated Duration**: 2-3 hours  
+**Tests**: 0/8 (pending)  
+**Status**: Infrastructure complete, implementation pending
+
+**Completed**:
+- [x] GraphDBService dependency injection
+- [x] EntityExtractor dependency injection
+- [x] RelationshipExtractor dependency injection
+- [x] Service initialization in main.py lifespan
+- [x] Service cleanup on shutdown
+
+**Remaining**:
+- [ ] Write 6-8 webhook tests (RED phase)
+- [ ] Enhance `process_crawled_page()` with entity extraction
+- [ ] Add relationship extraction to webhook processing
+- [ ] Store entities in Neo4j
+- [ ] Store relationships in Neo4j
+- [ ] Create MENTIONED_IN relationships (entity → document)
+
+**Files Modified**:
+- `apps/api/app/dependencies.py` (added 3 graph services, +75 lines)
+- `apps/api/app/main.py` (added initialization/cleanup, +24 lines)
+
+**Files To Modify**:
+- `apps/api/tests/api/v1/endpoints/test_webhooks.py` (add 6-8 tests)
+- `apps/api/app/api/v1/endpoints/webhooks.py` (enhance process_crawled_page)
+
+### Metrics
+
+```
+Total Tests: 54/62 (87% passing)
+- Entity Extractor: 10/10 ✅
+- Graph DB: 11/11 ✅
+- Relationship Extractor: 10/10 ✅
+- Hybrid Query: 11/11 ✅
+- Graph API: 12/12 ✅
+- Webhooks: 0/8 ⏳
+
+New Services Coverage:
+- hybrid_query.py: 95% ⭐
+- entity_extractor.py: 73%
+- relationship_extractor.py: 73%
+- graph_db.py: 68%
+- graph.py (endpoints): 79%
+- Average: 77%
+
+Lines of Code:
+- Service implementations: ~1,520 lines
+- Test code: ~720 lines
+- Test/Code Ratio: 0.47:1
+
+Files Created: 10
+Files Modified: 4
+```
+
+### Dependencies Added
+
+```toml
+[project.dependencies]
+spacy = "^3.7.0"
+neo4j = "^6.0.2"
+
+[project.optional-dependencies]
+dev = [
+  "pytest-asyncio>=1.2.0",
+]
+```
+
+### Environment Variables
+
+```env
+NEO4J_URI=bolt://localhost:7688
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=testpassword123
+```
+
+### TDD Approach Used
+
+Perfect **RED-GREEN-REFACTOR** compliance for all deliverables:
+
+1. **Deliverable 1-4** (Previous Session):
+   - ✅ RED: Wrote failing tests first
+   - ✅ GREEN: Implemented minimal code to pass
+   - ✅ REFACTOR: Cleaned up while keeping tests green
+   - ✅ Result: 42/42 tests passing
+
+2. **Deliverable 5** (Current Session):
+   - ✅ RED: Wrote 12 failing endpoint tests
+   - ✅ GREEN: Implemented 3 endpoints → 12/12 passing
+   - ✅ REFACTOR: Added docstrings, improved error handling
+   - ✅ Result: 79% coverage
+
+3. **Deliverable 6** (In Progress):
+   - ✅ Infrastructure: Added DI and initialization
+   - ⏳ RED: Write 6-8 failing webhook tests
+   - ⏳ GREEN: Enhance webhook processing
+   - ⏳ REFACTOR: Optimize and clean up
+
+### Key Technical Decisions
+
+1. **spaCy for NER**: Fast, accurate, supports 15+ entity types
+2. **Neo4j for Graph**: Industry-standard, powerful traversal, MERGE semantics
+3. **LLM for Relationships**: Semantic understanding, flexible extraction
+4. **Hybrid Scoring**: 60% vector + 40% graph + 20% bonus for both sources
+5. **Async First**: All services use async/await consistently
+6. **Entity ID Pattern**: `{TYPE}_{normalized_text}` (e.g., `PERSON_Steve_Jobs`)
+
+### Infrastructure
+
+- **Neo4j Container**: graphrag-neo4j-test (port 7688)
+- **spaCy Model**: en_core_web_lg (382MB, installed)
+- **Original Neo4j**: homegraph-neo4j (port 7687, preserved)
+
+---
+
+## ⏳ Phase 3: Frontend Features (PENDING)
 
 **Goal**: Enhanced UI with conversation management  
-**Status**: ⏳ Pending (after Phase 1)  
+**Status**: ⏳ Pending (after Phase 2)  
 **Estimated Duration**: 8-10 hours
 
 ### Planned Features
@@ -515,13 +745,41 @@ cd apps/web && npx tsc --noEmit         # Type check frontend
 
 ---
 
-**Current Status**: ✅ Phase 0 Complete, ✅ Phase 1 Complete, ✅ Phase 1B Complete  
-**Next Action**: Phase 2 - Frontend Features and UI Enhancement  
-**Last Updated**: 2025-11-01 18:00 UTC
+**Current Status**: ✅ Phase 0-1B Complete, 🔄 Phase 2 In Progress (83% - 5 of 6 deliverables done)  
+**Next Action**: Complete Deliverable 6 (Webhook Enhancement) - Write tests + enhance webhooks.py  
+**Estimated Time to Complete Phase 2**: ~1.5 hours  
+**Last Updated**: 2025-11-02 16:00 UTC
 
 ---
 
 ## 🎉 Recent Accomplishments
+
+**Phase 2 Session (2025-11-02)** - IN PROGRESS 🔄:
+- ✅ Deliverable 5 COMPLETE: Graph API Endpoints (12 tests, 79% coverage)
+- ✅ Created POST `/api/v1/graph/search` for hybrid search
+- ✅ Created GET `/api/v1/graph/entities/{entity_id}/connections` for graph traversal
+- ✅ Created GET `/api/v1/graph/entities/search` for entity search
+- ✅ Added dependency injection for graph services (GraphDB, EntityExtractor, RelationshipExtractor)
+- ✅ Initialized graph services in main.py lifespan
+- ✅ Added 4 mock fixtures to conftest.py for testing
+- ✅ Perfect TDD: RED (12 failing tests) → GREEN (12 passing) → REFACTOR
+- 🔄 Deliverable 6 IN PROGRESS: Webhook Enhancement (60% complete, infrastructure done)
+- 📊 **12 new passing tests** in ~2 hours (+ 42 from previous session = 54 total)
+- 📄 **4 files created, 4 files modified**
+- 📈 **Coverage**: Graph endpoints 79%, overall Phase 2 avg 77%
+
+**Phase 2 Previous Session (2025-11-02)** - Deliverables 1-4 COMPLETE ✅:
+- ✅ Entity Extraction Pipeline (10 tests, 73% coverage)
+- ✅ Neo4j Graph Database Service (11 tests, 68% coverage)
+- ✅ Relationship Extraction (10 tests, 73% coverage)
+- ✅ Hybrid Query System (11 tests, 95% coverage ⭐)
+- ✅ spaCy integration with 15+ entity types
+- ✅ Neo4j async driver with graph traversal
+- ✅ LLM-based relationship extraction
+- ✅ Hybrid scoring (60% vector + 40% graph)
+- ✅ All TDD: Tests first, then implementation
+- 📊 **42 passing tests** in ~4.5 hours!
+- 📄 **8 files created** (4 services + 4 test files)
 
 **Phase 1B Session (2025-11-01)** - COMPLETE ✅:
 - ✅ Implemented Claude API rate limiting (10 req/min server, 5 req/min client)

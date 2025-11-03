@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     extract,
     conversations,
     chat,
+    graph,
 )
 
 api_router = APIRouter()
@@ -20,6 +21,7 @@ api_router = APIRouter()
 # Include endpoint routers
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
+api_router.include_router(graph.router, prefix="/graph", tags=["graph"])
 api_router.include_router(crawl.router, prefix="/crawl", tags=["crawl"])
 api_router.include_router(scrape.router, prefix="/scrape", tags=["scrape"])
 api_router.include_router(map.router, prefix="/map", tags=["map"])

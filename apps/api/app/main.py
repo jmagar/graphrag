@@ -15,6 +15,9 @@ from app.services.embeddings import EmbeddingsService
 from app.services.llm import LLMService
 from app.services.redis_service import RedisService
 from app.services.language_detection import LanguageDetectionService
+from app.services.graph_db import GraphDBService
+from app.services.entity_extractor import EntityExtractor
+from app.services.relationship_extractor import RelationshipExtractor
 from app.dependencies import (
     set_firecrawl_service, clear_firecrawl_service,
     set_vector_db_service, clear_vector_db_service,
@@ -22,6 +25,9 @@ from app.dependencies import (
     set_llm_service, clear_llm_service,
     set_redis_service, clear_redis_service,
     set_language_detection_service, clear_language_detection_service,
+    set_graph_db_service, clear_graph_db_service,
+    set_entity_extractor, clear_entity_extractor,
+    set_relationship_extractor, clear_relationship_extractor,
     clear_all_services
 )
 
@@ -64,6 +70,20 @@ async def lifespan(app: FastAPI):
     lang_service = LanguageDetectionService()
     set_language_detection_service(lang_service)
     logger.info("✅ LanguageDetectionService initialized")
+    
+    # Initialize GraphRAG services
+    graph_db_service = GraphDBService()
+    await graph_db_service.initialize()
+    set_graph_db_service(graph_db_service)
+    logger.info("✅ GraphDBService initialized")
+    
+    entity_extractor = EntityExtractor()
+    set_entity_extractor(entity_extractor)
+    logger.info("✅ EntityExtractor initialized")
+    
+    relationship_extractor = RelationshipExtractor()
+    set_relationship_extractor(relationship_extractor)
+    logger.info("✅ RelationshipExtractor initialized")
 
     # Validate critical service configuration
     if not settings.FIRECRAWL_URL:
@@ -114,6 +134,12 @@ async def lifespan(app: FastAPI):
         logger.info("✅ RedisService closed")
     except Exception as e:
         logger.error(f"❌ Error closing RedisService: {e}")
+    
+    try:
+        await graph_db_service.close()
+        logger.info("✅ GraphDBService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing GraphDBService: {e}")
     
     # Clear all service singletons
     clear_all_services()

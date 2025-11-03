@@ -23,8 +23,21 @@ from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch, MagicMock, call
 import fakeredis.aioredis
 
+# Import app and dependencies for DI overrides
+from app.main import app
+from app.dependencies import get_redis_service, get_language_detection_service
+
 # Enable anyio for all tests in this module
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def setup_di_overrides(mock_redis_service, mock_language_detection_service):
+    """Automatically setup DI overrides for all tests in this module."""
+    app.dependency_overrides[get_redis_service] = lambda: mock_redis_service
+    app.dependency_overrides[get_language_detection_service] = lambda: mock_language_detection_service
+    yield
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -109,41 +122,126 @@ class TestCompleteWebhookLifecycle:
         test_client: AsyncClient,
         fake_redis: fakeredis.aioredis.FakeRedis,
         setup_fake_redis_service: Dict[str, Any],
-        mock_document_processor: Dict[str, MagicMock]
+        mock_document_processor: Dict[str, MagicMock],
+        mock_redis_service
     ):
         """
         Test complete crawl lifecycle: started → page → page → completed
         with streaming enabled and proper deduplication.
         """
-        # Inject fake Redis into the webhook handler
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            # Setup fake Redis behavior
-            mock_redis_service.mark_page_processed = setup_fake_redis_service["mark_page_processed"]
-            mock_redis_service.is_page_processed = setup_fake_redis_service["is_page_processed"]
-            mock_redis_service.cleanup_crawl_tracking = setup_fake_redis_service["cleanup_crawl_tracking"]
+        # Setup fake Redis behavior using the injected mock
+        mock_redis_service.mark_page_processed = setup_fake_redis_service["mark_page_processed"]
+        mock_redis_service.is_page_processed = setup_fake_redis_service["is_page_processed"]
+        mock_redis_service.cleanup_crawl_tracking = setup_fake_redis_service["cleanup_crawl_tracking"]
 
-            crawl_id = "test-crawl-lifecycle-001"
+        crawl_id = "test-crawl-lifecycle-001"
 
-            # Step 1: crawl.started event
-            started_payload = {
-                "type": "crawl.started",
-                "id": crawl_id,
-                "timestamp": "2025-10-31T12:00:00Z"
-            }
+        # Step 1: crawl.started event
+        started_payload = {
+            "type": "crawl.started",
+            "id": crawl_id,
+            "timestamp": "2025-10-31T12:00:00Z"
+        }
 
-            response = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json=started_payload
-            )
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=started_payload
+        )
 
-            assert response.status_code == 200
-            assert response.json()["status"] == "acknowledged"
+        assert response.status_code == 200
+        assert response.json()["status"] == "acknowledged"
 
-            # Step 2: First crawl.page event
-            page1_payload = {
-                "type": "crawl.page",
-                "id": crawl_id,
-                "data": {
+        # Step 2: First crawl.page event
+        page1_payload = {
+            "type": "crawl.page",
+            "id": crawl_id,
+            "data": {
+                "markdown": "# Page 1\n\nContent from page 1",
+                "metadata": {
+                    "sourceURL": "https://example.com/page1",
+                    "title": "Page 1",
+                    "statusCode": 200
+                }
+            },
+            "timestamp": "2025-10-31T12:00:01Z"
+        }
+
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=page1_payload
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "processing"
+
+        # Verify page1 marked as processed
+        assert await fake_redis.sismember(
+            f"crawl:{crawl_id}:processed",
+            "https://example.com/page1"
+        )
+
+        # Step 3: Second crawl.page event
+        page2_payload = {
+            "type": "crawl.page",
+            "id": crawl_id,
+            "data": {
+                "markdown": "# Page 2\n\nContent from page 2",
+                "metadata": {
+                    "sourceURL": "https://example.com/page2",
+                    "title": "Page 2",
+                    "statusCode": 200
+                }
+            },
+            "timestamp": "2025-10-31T12:00:02Z"
+        }
+
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=page2_payload
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "processing"
+
+        # Verify page2 marked as processed
+        assert await fake_redis.sismember(
+            f"crawl:{crawl_id}:processed",
+            "https://example.com/page2"
+        )
+
+        # Step 4: Third crawl.page event (another page)
+        page3_payload = {
+            "type": "crawl.page",
+            "id": crawl_id,
+            "data": {
+                "markdown": "# Page 3\n\nContent from page 3",
+                "metadata": {
+                    "sourceURL": "https://example.com/page3",
+                    "title": "Page 3",
+                    "statusCode": 200
+                }
+            },
+            "timestamp": "2025-10-31T12:00:03Z"
+        }
+
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=page3_payload
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "processing"
+
+        # Verify all 3 pages tracked
+        processed_count = await fake_redis.scard(f"crawl:{crawl_id}:processed")
+        assert processed_count == 3
+
+        # Step 5: crawl.completed event with NEW page (page4) and already-processed pages
+        completed_payload = {
+            "type": "crawl.completed",
+            "id": crawl_id,
+            "data": [
+                {
                     "markdown": "# Page 1\n\nContent from page 1",
                     "metadata": {
                         "sourceURL": "https://example.com/page1",
@@ -151,28 +249,7 @@ class TestCompleteWebhookLifecycle:
                         "statusCode": 200
                     }
                 },
-                "timestamp": "2025-10-31T12:00:01Z"
-            }
-
-            response = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json=page1_payload
-            )
-
-            assert response.status_code == 200
-            assert response.json()["status"] == "processing"
-
-            # Verify page1 marked as processed
-            assert await fake_redis.sismember(
-                f"crawl:{crawl_id}:processed",
-                "https://example.com/page1"
-            )
-
-            # Step 3: Second crawl.page event
-            page2_payload = {
-                "type": "crawl.page",
-                "id": crawl_id,
-                "data": {
+                {
                     "markdown": "# Page 2\n\nContent from page 2",
                     "metadata": {
                         "sourceURL": "https://example.com/page2",
@@ -180,28 +257,7 @@ class TestCompleteWebhookLifecycle:
                         "statusCode": 200
                     }
                 },
-                "timestamp": "2025-10-31T12:00:02Z"
-            }
-
-            response = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json=page2_payload
-            )
-
-            assert response.status_code == 200
-            assert response.json()["status"] == "processing"
-
-            # Verify page2 marked as processed
-            assert await fake_redis.sismember(
-                f"crawl:{crawl_id}:processed",
-                "https://example.com/page2"
-            )
-
-            # Step 4: Third crawl.page event (another page)
-            page3_payload = {
-                "type": "crawl.page",
-                "id": crawl_id,
-                "data": {
+                {
                     "markdown": "# Page 3\n\nContent from page 3",
                     "metadata": {
                         "sourceURL": "https://example.com/page3",
@@ -209,91 +265,48 @@ class TestCompleteWebhookLifecycle:
                         "statusCode": 200
                     }
                 },
-                "timestamp": "2025-10-31T12:00:03Z"
-            }
-
-            response = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json=page3_payload
-            )
-
-            assert response.status_code == 200
-            assert response.json()["status"] == "processing"
-
-            # Verify all 3 pages tracked
-            processed_count = await fake_redis.scard(f"crawl:{crawl_id}:processed")
-            assert processed_count == 3
-
-            # Step 5: crawl.completed event with NEW page (page4) and already-processed pages
-            completed_payload = {
-                "type": "crawl.completed",
-                "id": crawl_id,
-                "data": [
-                    {
-                        "markdown": "# Page 1\n\nContent from page 1",
-                        "metadata": {
-                            "sourceURL": "https://example.com/page1",
-                            "title": "Page 1",
-                            "statusCode": 200
-                        }
-                    },
-                    {
-                        "markdown": "# Page 2\n\nContent from page 2",
-                        "metadata": {
-                            "sourceURL": "https://example.com/page2",
-                            "title": "Page 2",
-                            "statusCode": 200
-                        }
-                    },
-                    {
-                        "markdown": "# Page 3\n\nContent from page 3",
-                        "metadata": {
-                            "sourceURL": "https://example.com/page3",
-                            "title": "Page 3",
-                            "statusCode": 200
-                        }
-                    },
-                    {
-                        "markdown": "# Page 4\n\nContent from page 4 (NEW)",
-                        "metadata": {
-                            "sourceURL": "https://example.com/page4",
-                            "title": "Page 4",
-                            "statusCode": 200
-                        }
+                {
+                    "markdown": "# Page 4\n\nContent from page 4 (NEW)",
+                    "metadata": {
+                        "sourceURL": "https://example.com/page4",
+                        "title": "Page 4",
+                        "statusCode": 200
                     }
-                ],
-                "total": 4,
-                "completed": 4,
-                "creditsUsed": 4,
-                "timestamp": "2025-10-31T12:00:10Z"
-            }
+                }
+            ],
+            "total": 4,
+            "completed": 4,
+            "creditsUsed": 4,
+            "timestamp": "2025-10-31T12:00:10Z"
+        }
 
-            response = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json=completed_payload
-            )
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=completed_payload
+        )
 
-            assert response.status_code == 200
-            result = response.json()
-            assert result["status"] == "completed"
-            assert result["pages_processed"] == 4
-            assert result["pages_skipped"] == 3  # pages 1, 2, 3 already processed
+        assert response.status_code == 200
+        result = response.json()
+        assert result["status"] == "completed"
+        assert result["pages_processed"] == 4
+        assert result["pages_skipped"] == 3  # pages 1, 2, 3 already processed
 
-            # Verify batch processing was called with only page4
-            mock_document_processor["batch"].assert_called_once()
-            batch_call_args = mock_document_processor["batch"].call_args[0][0]
-            assert len(batch_call_args) == 1
-            assert batch_call_args[0]["source_url"] == "https://example.com/page4"
+        # Verify batch processing was called with only page4
+        mock_document_processor["batch"].assert_called_once()
+        batch_call_args = mock_document_processor["batch"].call_args[0][0]
+        assert len(batch_call_args) == 1
+        assert batch_call_args[0]["source_url"] == "https://example.com/page4"
 
-            # Verify tracking data was cleaned up
-            assert not await fake_redis.exists(f"crawl:{crawl_id}:processed")
+        # Verify tracking data was cleaned up
+        assert not await fake_redis.exists(f"crawl:{crawl_id}:processed")
 
     async def test_full_crawl_lifecycle_streaming_disabled(
         self,
         test_client: AsyncClient,
         fake_redis: fakeredis.aioredis.FakeRedis,
         mock_document_processor: Dict[str, MagicMock],
-        monkeypatch
+        monkeypatch,
+        mock_redis_service
     ):
         """
         Test complete crawl lifecycle with streaming disabled.
@@ -307,83 +320,82 @@ class TestCompleteWebhookLifecycle:
         from app.api.v1.endpoints import webhooks
         monkeypatch.setattr(webhooks, "settings", config.settings)
 
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            async def _mark_processed(crawl_id: str, url: str):
-                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+        async def _mark_processed(crawl_id: str, url: str):
+            return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
 
-            async def _is_processed(crawl_id: str, url: str):
-                return await fake_redis.sismember(f"crawl:{crawl_id}:processed", url)
+        async def _is_processed(crawl_id: str, url: str):
+            return await fake_redis.sismember(f"crawl:{crawl_id}:processed", url)
 
-            async def _cleanup_tracking(crawl_id: str):
-                return await fake_redis.delete(f"crawl:{crawl_id}:processed")
+        async def _cleanup_tracking(crawl_id: str):
+            return await fake_redis.delete(f"crawl:{crawl_id}:processed")
 
-            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
-            mock_redis_service.is_page_processed = AsyncMock(side_effect=_is_processed)
-            mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
+        mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+        mock_redis_service.is_page_processed = AsyncMock(side_effect=_is_processed)
+        mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
 
-            crawl_id = "test-crawl-no-stream-001"
+        crawl_id = "test-crawl-no-stream-001"
 
-            # crawl.started
-            await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json={"type": "crawl.started", "id": crawl_id}
-            )
+        # crawl.started
+        await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json={"type": "crawl.started", "id": crawl_id}
+        )
 
-            # crawl.page events - should be acknowledged but NOT processed
-            for i in range(1, 4):
-                page_payload = {
-                    "type": "crawl.page",
-                    "id": crawl_id,
-                    "data": {
-                        "markdown": f"# Page {i}",
-                        "metadata": {
-                            "sourceURL": f"https://example.com/page{i}",
-                            "title": f"Page {i}",
-                            "statusCode": 200
-                        }
+        # crawl.page events - should be acknowledged but NOT processed
+        for i in range(1, 4):
+            page_payload = {
+                "type": "crawl.page",
+                "id": crawl_id,
+                "data": {
+                    "markdown": f"# Page {i}",
+                    "metadata": {
+                        "sourceURL": f"https://example.com/page{i}",
+                        "title": f"Page {i}",
+                        "statusCode": 200
                     }
                 }
-                response = await test_client.post(
-                    "/api/v1/webhooks/firecrawl",
-                    json=page_payload
-                )
-                assert response.json()["status"] == "acknowledged"
-
-            # Verify pages still tracked (for deduplication)
-            assert await fake_redis.scard(f"crawl:{crawl_id}:processed") == 3
-
-            # crawl.completed - should process all new pages in batch
-            completed_payload = {
-                "type": "crawl.completed",
-                "id": crawl_id,
-                "data": [
-                    {
-                        "markdown": f"# Page {i}",
-                        "metadata": {
-                            "sourceURL": f"https://example.com/page{i}",
-                            "title": f"Page {i}",
-                            "statusCode": 200
-                        }
-                    }
-                    for i in range(1, 5)  # 4 pages total
-                ]
             }
-
             response = await test_client.post(
                 "/api/v1/webhooks/firecrawl",
-                json=completed_payload
+                json=page_payload
             )
+            assert response.json()["status"] == "acknowledged"
 
-            result = response.json()
-            assert result["status"] == "completed"
-            assert result["pages_processed"] == 4
-            assert result["pages_skipped"] == 3  # Already tracked
+        # Verify pages still tracked (for deduplication)
+        assert await fake_redis.scard(f"crawl:{crawl_id}:processed") == 3
 
-            # Verify only page4 was batched
-            mock_document_processor["batch"].assert_called_once()
-            batch_call_args = mock_document_processor["batch"].call_args[0][0]
-            assert len(batch_call_args) == 1
-            assert batch_call_args[0]["source_url"] == "https://example.com/page4"
+        # crawl.completed - should process all new pages in batch
+        completed_payload = {
+            "type": "crawl.completed",
+            "id": crawl_id,
+            "data": [
+                {
+                    "markdown": f"# Page {i}",
+                    "metadata": {
+                        "sourceURL": f"https://example.com/page{i}",
+                        "title": f"Page {i}",
+                        "statusCode": 200
+                    }
+                }
+                for i in range(1, 5)  # 4 pages total
+            ]
+        }
+
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=completed_payload
+        )
+
+        result = response.json()
+        assert result["status"] == "completed"
+        assert result["pages_processed"] == 4
+        assert result["pages_skipped"] == 3  # Already tracked
+
+        # Verify only page4 was batched
+        mock_document_processor["batch"].assert_called_once()
+        batch_call_args = mock_document_processor["batch"].call_args[0][0]
+        assert len(batch_call_args) == 1
+        assert batch_call_args[0]["source_url"] == "https://example.com/page4"
 
 
 class TestWebhookSignatureVerification:
@@ -594,20 +606,122 @@ class TestConcurrentWebhookHandling:
         self,
         test_client: AsyncClient,
         fake_redis: fakeredis.aioredis.FakeRedis,
-        mock_document_processor: Dict[str, MagicMock]
+        mock_document_processor: Dict[str, MagicMock],
+        mock_redis_service
     ):
         """Test that concurrent page events are handled correctly."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            async def _mark_processed(crawl_id: str, url: str):
-                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+        async def _mark_processed(crawl_id: str, url: str):
+            return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
 
-            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+        mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
 
-            crawl_id = "test-crawl-concurrent-001"
+        crawl_id = "test-crawl-concurrent-001"
 
-            # Create 10 concurrent page events
-            page_payloads = [
-                {
+        # Create 10 concurrent page events
+        page_payloads = [
+            {
+                "type": "crawl.page",
+                "id": crawl_id,
+                "data": {
+                    "markdown": f"# Page {i}",
+                    "metadata": {
+                        "sourceURL": f"https://example.com/page{i}",
+                        "title": f"Page {i}",
+                        "statusCode": 200
+                    }
+                }
+            }
+            for i in range(1, 11)
+        ]
+
+        # Send all requests concurrently
+        tasks = [
+            test_client.post("/api/v1/webhooks/firecrawl", json=payload)
+            for payload in page_payloads
+        ]
+        responses = await asyncio.gather(*tasks)
+
+        # Verify all requests succeeded
+        assert all(r.status_code == 200 for r in responses)
+        assert all(r.json()["status"] == "processing" for r in responses)
+
+        # Verify all pages were tracked
+        processed_count = await fake_redis.scard(f"crawl:{crawl_id}:processed")
+        assert processed_count == 10
+
+    async def test_concurrent_crawls(
+        self,
+        test_client: AsyncClient,
+        fake_redis: fakeredis.FakeRedis,
+        mock_redis_service
+    ):
+        """Test that multiple concurrent crawls don't interfere with each other."""
+        async def _mark_processed(crawl_id: str, url: str):
+            return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+
+        mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+
+        # Create payloads for 5 different crawls
+        crawl_payloads = []
+        for crawl_num in range(1, 6):
+            crawl_id = f"test-crawl-multi-{crawl_num:03d}"
+            for page_num in range(1, 4):
+                crawl_payloads.append({
+                    "type": "crawl.page",
+                    "id": crawl_id,
+                    "data": {
+                        "markdown": f"# Crawl {crawl_num} Page {page_num}",
+                        "metadata": {
+                            "sourceURL": f"https://example{crawl_num}.com/page{page_num}",
+                            "title": f"Page {page_num}",
+                            "statusCode": 200
+                        }
+                    }
+                })
+
+        # Send all 15 requests concurrently
+        tasks = [
+            test_client.post("/api/v1/webhooks/firecrawl", json=payload)
+            for payload in crawl_payloads
+        ]
+        responses = await asyncio.gather(*tasks)
+
+        # Verify all succeeded
+        assert all(r.status_code == 200 for r in responses)
+
+        # Verify each crawl tracked exactly 3 pages
+        for crawl_num in range(1, 6):
+            crawl_id = f"test-crawl-multi-{crawl_num:03d}"
+            count = await fake_redis.scard(f"crawl:{crawl_id}:processed")
+            assert count == 3
+
+    async def test_race_condition_between_page_and_completed(
+        self,
+        test_client: AsyncClient,
+        fake_redis: fakeredis.aioredis.FakeRedis,
+        mock_document_processor: Dict[str, MagicMock],
+        mock_redis_service):
+        """Test race condition where completed arrives before last page events."""
+        async def _mark_processed(crawl_id: str, url: str):
+            return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+
+        async def _is_processed(crawl_id: str, url: str):
+            return await fake_redis.sismember(f"crawl:{crawl_id}:processed", url)
+
+        async def _cleanup_tracking(crawl_id: str):
+            return await fake_redis.delete(f"crawl:{crawl_id}:processed")
+
+        mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+        mock_redis_service.is_page_processed = AsyncMock(side_effect=_is_processed)
+        mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
+
+        crawl_id = "test-crawl-race-001"
+
+        # Process first 2 pages
+        for i in [1, 2]:
+            await test_client.post(
+                "/api/v1/webhooks/firecrawl",
+                json={
                     "type": "crawl.page",
                     "id": crawl_id,
                     "data": {
@@ -619,157 +733,54 @@ class TestConcurrentWebhookHandling:
                         }
                     }
                 }
-                for i in range(1, 11)
-            ]
-
-            # Send all requests concurrently
-            tasks = [
-                test_client.post("/api/v1/webhooks/firecrawl", json=payload)
-                for payload in page_payloads
-            ]
-            responses = await asyncio.gather(*tasks)
-
-            # Verify all requests succeeded
-            assert all(r.status_code == 200 for r in responses)
-            assert all(r.json()["status"] == "processing" for r in responses)
-
-            # Verify all pages were tracked
-            processed_count = await fake_redis.scard(f"crawl:{crawl_id}:processed")
-            assert processed_count == 10
-
-    async def test_concurrent_crawls(
-        self,
-        test_client: AsyncClient,
-        fake_redis: fakeredis.FakeRedis
-    ):
-        """Test that multiple concurrent crawls don't interfere with each other."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            async def _mark_processed(crawl_id: str, url: str):
-                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
-
-            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
-
-            # Create payloads for 5 different crawls
-            crawl_payloads = []
-            for crawl_num in range(1, 6):
-                crawl_id = f"test-crawl-multi-{crawl_num:03d}"
-                for page_num in range(1, 4):
-                    crawl_payloads.append({
-                        "type": "crawl.page",
-                        "id": crawl_id,
-                        "data": {
-                            "markdown": f"# Crawl {crawl_num} Page {page_num}",
-                            "metadata": {
-                                "sourceURL": f"https://example{crawl_num}.com/page{page_num}",
-                                "title": f"Page {page_num}",
-                                "statusCode": 200
-                            }
-                        }
-                    })
-
-            # Send all 15 requests concurrently
-            tasks = [
-                test_client.post("/api/v1/webhooks/firecrawl", json=payload)
-                for payload in crawl_payloads
-            ]
-            responses = await asyncio.gather(*tasks)
-
-            # Verify all succeeded
-            assert all(r.status_code == 200 for r in responses)
-
-            # Verify each crawl tracked exactly 3 pages
-            for crawl_num in range(1, 6):
-                crawl_id = f"test-crawl-multi-{crawl_num:03d}"
-                count = await fake_redis.scard(f"crawl:{crawl_id}:processed")
-                assert count == 3
-
-    async def test_race_condition_between_page_and_completed(
-        self,
-        test_client: AsyncClient,
-        fake_redis: fakeredis.aioredis.FakeRedis,
-        mock_document_processor: Dict[str, MagicMock]
-    ):
-        """Test race condition where completed arrives before last page events."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            async def _mark_processed(crawl_id: str, url: str):
-                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
-
-            async def _is_processed(crawl_id: str, url: str):
-                return await fake_redis.sismember(f"crawl:{crawl_id}:processed", url)
-
-            async def _cleanup_tracking(crawl_id: str):
-                return await fake_redis.delete(f"crawl:{crawl_id}:processed")
-
-            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
-            mock_redis_service.is_page_processed = AsyncMock(side_effect=_is_processed)
-            mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
-
-            crawl_id = "test-crawl-race-001"
-
-            # Process first 2 pages
-            for i in [1, 2]:
-                await test_client.post(
-                    "/api/v1/webhooks/firecrawl",
-                    json={
-                        "type": "crawl.page",
-                        "id": crawl_id,
-                        "data": {
-                            "markdown": f"# Page {i}",
-                            "metadata": {
-                                "sourceURL": f"https://example.com/page{i}",
-                                "title": f"Page {i}",
-                                "statusCode": 200
-                            }
-                        }
-                    }
-                )
-
-            # Send completed event and page3 event concurrently
-            completed_task = test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json={
-                    "type": "crawl.completed",
-                    "id": crawl_id,
-                    "data": [
-                        {
-                            "markdown": f"# Page {i}",
-                            "metadata": {
-                                "sourceURL": f"https://example.com/page{i}",
-                                "title": f"Page {i}",
-                                "statusCode": 200
-                            }
-                        }
-                        for i in range(1, 4)
-                    ]
-                }
             )
 
-            page3_task = test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json={
-                    "type": "crawl.page",
-                    "id": crawl_id,
-                    "data": {
-                        "markdown": "# Page 3",
+        # Send completed event and page3 event concurrently
+        completed_task = test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json={
+                "type": "crawl.completed",
+                "id": crawl_id,
+                "data": [
+                    {
+                        "markdown": f"# Page {i}",
                         "metadata": {
-                            "sourceURL": "https://example.com/page3",
-                            "title": "Page 3",
+                            "sourceURL": f"https://example.com/page{i}",
+                            "title": f"Page {i}",
                             "statusCode": 200
                         }
                     }
+                    for i in range(1, 4)
+                ]
+            }
+        )
+
+        page3_task = test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json={
+                "type": "crawl.page",
+                "id": crawl_id,
+                "data": {
+                    "markdown": "# Page 3",
+                    "metadata": {
+                        "sourceURL": "https://example.com/page3",
+                        "title": "Page 3",
+                        "statusCode": 200
+                    }
                 }
-            )
+            }
+        )
 
-            # Execute concurrently
-            responses = await asyncio.gather(completed_task, page3_task)
+        # Execute concurrently
+        responses = await asyncio.gather(completed_task, page3_task)
 
-            # Both should succeed
-            assert all(r.status_code == 200 for r in responses)
+        # Both should succeed
+        assert all(r.status_code == 200 for r in responses)
 
-            # The behavior depends on timing, but no errors should occur
-            # Either page3 gets processed twice (once in streaming, once in batch)
-            # or it gets skipped in batch (if page event processed first)
-            # Both outcomes are acceptable as long as no errors occur
+        # The behavior depends on timing, but no errors should occur
+        # Either page3 gets processed twice (once in streaming, once in batch)
+        # or it gets skipped in batch (if page event processed first)
+        # Both outcomes are acceptable as long as no errors occur
 
 
 class TestErrorHandlingAndGracefulDegradation:
@@ -778,24 +789,44 @@ class TestErrorHandlingAndGracefulDegradation:
     async def test_redis_unavailable_fallback(
         self,
         test_client: AsyncClient,
-        mock_document_processor: Dict[str, MagicMock]
-    ):
+        mock_document_processor: Dict[str, MagicMock],
+        mock_redis_service):
         """Test graceful handling when Redis is unavailable."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            # Simulate Redis unavailable
-            mock_redis_service.mark_page_processed = AsyncMock(return_value=False)
-            mock_redis_service.is_page_processed = AsyncMock(return_value=False)
-            mock_redis_service.cleanup_crawl_tracking = AsyncMock(return_value=False)
+        # Simulate Redis unavailable
+        mock_redis_service.mark_page_processed = AsyncMock(return_value=False)
+        mock_redis_service.is_page_processed = AsyncMock(return_value=False)
+        mock_redis_service.cleanup_crawl_tracking = AsyncMock(return_value=False)
 
-            crawl_id = "test-crawl-redis-down-001"
+        crawl_id = "test-crawl-redis-down-001"
 
-            # Process page events - should still work
-            response = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json={
-                    "type": "crawl.page",
-                    "id": crawl_id,
-                    "data": {
+        # Process page events - should still work
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json={
+                "type": "crawl.page",
+                "id": crawl_id,
+                "data": {
+                    "markdown": "# Test Page",
+                    "metadata": {
+                        "sourceURL": "https://example.com/test",
+                        "title": "Test",
+                        "statusCode": 200
+                    }
+                }
+            }
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "processing"
+
+        # Process completed event - should process all pages (no deduplication)
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json={
+                "type": "crawl.completed",
+                "id": crawl_id,
+                "data": [
+                    {
                         "markdown": "# Test Page",
                         "metadata": {
                             "sourceURL": "https://example.com/test",
@@ -803,140 +834,117 @@ class TestErrorHandlingAndGracefulDegradation:
                             "statusCode": 200
                         }
                     }
-                }
-            )
+                ]
+            }
+        )
 
-            assert response.status_code == 200
-            assert response.json()["status"] == "processing"
+        result = response.json()
+        assert result["status"] == "completed"
+        # Without Redis, can't deduplicate, so page processed again
+        assert result["pages_skipped"] == 0
 
-            # Process completed event - should process all pages (no deduplication)
-            response = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json={
-                    "type": "crawl.completed",
-                    "id": crawl_id,
-                    "data": [
-                        {
-                            "markdown": "# Test Page",
+    async def test_document_processor_error_does_not_fail_webhook(
+        self,
+        test_client: AsyncClient,
+        fake_redis: fakeredis.FakeRedis,
+        mock_redis_service):
+        """Test that document processor errors don't fail the webhook."""
+        with patch("app.api.v1.endpoints.webhooks.process_and_store_document") as mock_processor:
+            async def _mark_processed(crawl_id: str, url: str):
+                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+
+            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+
+            # Simulate processor error - use AsyncMock to avoid exception propagation
+            async def _failing_processor(*args, **kwargs):
+                raise Exception("Processing failed")
+
+            mock_processor.side_effect = _failing_processor
+
+            # The webhook endpoint should return 200 even though background task will fail
+            # In tests, background tasks execute synchronously, so we need to handle the exception
+            try:
+                response = await test_client.post(
+                    "/api/v1/webhooks/firecrawl",
+                    json={
+                        "type": "crawl.page",
+                        "id": "test-crawl-error-001",
+                        "data": {
+                            "markdown": "# Test",
                             "metadata": {
                                 "sourceURL": "https://example.com/test",
                                 "title": "Test",
                                 "statusCode": 200
                             }
                         }
-                    ]
-                }
-            )
-
-            result = response.json()
-            assert result["status"] == "completed"
-            # Without Redis, can't deduplicate, so page processed again
-            assert result["pages_skipped"] == 0
-
-    async def test_document_processor_error_does_not_fail_webhook(
-        self,
-        test_client: AsyncClient,
-        fake_redis: fakeredis.FakeRedis
-    ):
-        """Test that document processor errors don't fail the webhook."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            with patch("app.api.v1.endpoints.webhooks.process_and_store_document") as mock_processor:
-                async def _mark_processed(crawl_id: str, url: str):
-                    return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
-
-                mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
-
-                # Simulate processor error - use AsyncMock to avoid exception propagation
-                async def _failing_processor(*args, **kwargs):
-                    raise Exception("Processing failed")
-
-                mock_processor.side_effect = _failing_processor
-
-                # The webhook endpoint should return 200 even though background task will fail
-                # In tests, background tasks execute synchronously, so we need to handle the exception
-                try:
-                    response = await test_client.post(
-                        "/api/v1/webhooks/firecrawl",
-                        json={
-                            "type": "crawl.page",
-                            "id": "test-crawl-error-001",
-                            "data": {
-                                "markdown": "# Test",
-                                "metadata": {
-                                    "sourceURL": "https://example.com/test",
-                                    "title": "Test",
-                                    "statusCode": 200
-                                }
-                            }
-                        }
-                    )
-                except Exception:
-                    # In test environment, background tasks may propagate exceptions
-                    # This is expected - the important thing is the page was marked processed
-                    pass
-
-                # Page still marked as processed (happens before processor is called)
-                assert await fake_redis.sismember(
-                    "crawl:test-crawl-error-001:processed",
-                    "https://example.com/test"
+                    }
                 )
+            except Exception:
+                # In test environment, background tasks may propagate exceptions
+                # This is expected - the important thing is the page was marked processed
+                pass
+
+            # Page still marked as processed (happens before processor is called)
+            assert await fake_redis.sismember(
+                "crawl:test-crawl-error-001:processed",
+                "https://example.com/test"
+            )
 
     async def test_crawl_failed_event_cleanup(
         self,
         test_client: AsyncClient,
-        fake_redis: fakeredis.FakeRedis
-    ):
+        fake_redis: fakeredis.FakeRedis,
+        mock_redis_service):
         """Test that failed crawls properly clean up tracking data."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            async def _mark_processed(crawl_id: str, url: str):
-                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+        async def _mark_processed(crawl_id: str, url: str):
+            return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
 
-            async def _cleanup_tracking(crawl_id: str):
-                return await fake_redis.delete(f"crawl:{crawl_id}:processed")
+        async def _cleanup_tracking(crawl_id: str):
+            return await fake_redis.delete(f"crawl:{crawl_id}:processed")
 
-            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
-            mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
+        mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+        mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
 
-            crawl_id = "test-crawl-failed-001"
+        crawl_id = "test-crawl-failed-001"
 
-            # Process some pages
-            for i in range(1, 4):
-                await test_client.post(
-                    "/api/v1/webhooks/firecrawl",
-                    json={
-                        "type": "crawl.page",
-                        "id": crawl_id,
-                        "data": {
-                            "markdown": f"# Page {i}",
-                            "metadata": {
-                                "sourceURL": f"https://example.com/page{i}",
-                                "title": f"Page {i}",
-                                "statusCode": 200
-                            }
-                        }
-                    }
-                )
-
-            # Verify pages tracked
-            assert await fake_redis.scard(f"crawl:{crawl_id}:processed") == 3
-
-            # Send failed event
-            response = await test_client.post(
+        # Process some pages
+        for i in range(1, 4):
+            await test_client.post(
                 "/api/v1/webhooks/firecrawl",
                 json={
-                    "type": "crawl.failed",
+                    "type": "crawl.page",
                     "id": crawl_id,
-                    "error": "Crawl failed due to rate limiting"
+                    "data": {
+                        "markdown": f"# Page {i}",
+                        "metadata": {
+                            "sourceURL": f"https://example.com/page{i}",
+                            "title": f"Page {i}",
+                            "statusCode": 200
+                        }
+                    }
                 }
             )
 
-            assert response.status_code == 200
-            result = response.json()
-            assert result["status"] == "error"
-            assert "rate limiting" in result["error"]
+        # Verify pages tracked
+        assert await fake_redis.scard(f"crawl:{crawl_id}:processed") == 3
 
-            # Verify tracking data cleaned up
-            assert not await fake_redis.exists(f"crawl:{crawl_id}:processed")
+        # Send failed event
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json={
+                "type": "crawl.failed",
+                "id": crawl_id,
+                "error": "Crawl failed due to rate limiting"
+            }
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["status"] == "error"
+        assert "rate limiting" in result["error"]
+
+        # Verify tracking data cleaned up
+        assert not await fake_redis.exists(f"crawl:{crawl_id}:processed")
 
     async def test_empty_content_pages_skipped(
         self,
@@ -987,110 +995,108 @@ class TestDeduplicationEdgeCases:
         self,
         test_client: AsyncClient,
         fake_redis: fakeredis.aioredis.FakeRedis,
-        mock_document_processor: Dict[str, MagicMock]
-    ):
+        mock_document_processor: Dict[str, MagicMock],
+        mock_redis_service):
         """Test that duplicate page events are tracked correctly."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            async def _mark_processed(crawl_id: str, url: str):
-                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+        async def _mark_processed(crawl_id: str, url: str):
+            return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
 
-            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+        mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
 
-            crawl_id = "test-crawl-dup-001"
-            page_payload = {
-                "type": "crawl.page",
-                "id": crawl_id,
-                "data": {
-                    "markdown": "# Same Page",
-                    "metadata": {
-                        "sourceURL": "https://example.com/same",
-                        "title": "Same Page",
-                        "statusCode": 200
-                    }
+        crawl_id = "test-crawl-dup-001"
+        page_payload = {
+            "type": "crawl.page",
+            "id": crawl_id,
+            "data": {
+                "markdown": "# Same Page",
+                "metadata": {
+                    "sourceURL": "https://example.com/same",
+                    "title": "Same Page",
+                    "statusCode": 200
                 }
             }
+        }
 
-            # Send same page twice
-            response1 = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json=page_payload
-            )
-            response2 = await test_client.post(
-                "/api/v1/webhooks/firecrawl",
-                json=page_payload
-            )
+        # Send same page twice
+        response1 = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=page_payload
+        )
+        response2 = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json=page_payload
+        )
 
-            assert response1.status_code == 200
-            assert response2.status_code == 200
+        assert response1.status_code == 200
+        assert response2.status_code == 200
 
-            # Redis set ensures only one entry
-            assert await fake_redis.scard(f"crawl:{crawl_id}:processed") == 1
+        # Redis set ensures only one entry
+        assert await fake_redis.scard(f"crawl:{crawl_id}:processed") == 1
 
     async def test_all_pages_already_processed(
         self,
         test_client: AsyncClient,
         fake_redis: fakeredis.aioredis.FakeRedis,
-        mock_document_processor: Dict[str, MagicMock]
-    ):
+        mock_document_processor: Dict[str, MagicMock],
+        mock_redis_service):
         """Test completed event when all pages already processed."""
-        with patch("app.api.v1.endpoints.webhooks.redis_service") as mock_redis_service:
-            async def _mark_processed(crawl_id: str, url: str):
-                return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
+        async def _mark_processed(crawl_id: str, url: str):
+            return await fake_redis.sadd(f"crawl:{crawl_id}:processed", url)
 
-            async def _is_processed(crawl_id: str, url: str):
-                return await fake_redis.sismember(f"crawl:{crawl_id}:processed", url)
+        async def _is_processed(crawl_id: str, url: str):
+            return await fake_redis.sismember(f"crawl:{crawl_id}:processed", url)
 
-            async def _cleanup_tracking(crawl_id: str):
-                return await fake_redis.delete(f"crawl:{crawl_id}:processed")
+        async def _cleanup_tracking(crawl_id: str):
+            return await fake_redis.delete(f"crawl:{crawl_id}:processed")
 
-            mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
-            mock_redis_service.is_page_processed = AsyncMock(side_effect=_is_processed)
-            mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
+        mock_redis_service.mark_page_processed = AsyncMock(side_effect=_mark_processed)
+        mock_redis_service.is_page_processed = AsyncMock(side_effect=_is_processed)
+        mock_redis_service.cleanup_crawl_tracking = AsyncMock(side_effect=_cleanup_tracking)
 
-            crawl_id = "test-crawl-all-processed-001"
+        crawl_id = "test-crawl-all-processed-001"
 
-            # Process all pages via page events
-            for i in range(1, 4):
-                await test_client.post(
-                    "/api/v1/webhooks/firecrawl",
-                    json={
-                        "type": "crawl.page",
-                        "id": crawl_id,
-                        "data": {
-                            "markdown": f"# Page {i}",
-                            "metadata": {
-                                "sourceURL": f"https://example.com/page{i}",
-                                "title": f"Page {i}",
-                                "statusCode": 200
-                            }
-                        }
-                    }
-                )
-
-            # Send completed with same pages
-            response = await test_client.post(
+        # Process all pages via page events
+        for i in range(1, 4):
+            await test_client.post(
                 "/api/v1/webhooks/firecrawl",
                 json={
-                    "type": "crawl.completed",
+                    "type": "crawl.page",
                     "id": crawl_id,
-                    "data": [
-                        {
-                            "markdown": f"# Page {i}",
-                            "metadata": {
-                                "sourceURL": f"https://example.com/page{i}",
-                                "title": f"Page {i}",
-                                "statusCode": 200
-                            }
+                    "data": {
+                        "markdown": f"# Page {i}",
+                        "metadata": {
+                            "sourceURL": f"https://example.com/page{i}",
+                            "title": f"Page {i}",
+                            "statusCode": 200
                         }
-                        for i in range(1, 4)
-                    ]
+                    }
                 }
             )
 
-            result = response.json()
-            assert result["status"] == "completed"
-            assert result["pages_processed"] == 3
-            assert result["pages_skipped"] == 3
+        # Send completed with same pages
+        response = await test_client.post(
+            "/api/v1/webhooks/firecrawl",
+            json={
+                "type": "crawl.completed",
+                "id": crawl_id,
+                "data": [
+                    {
+                        "markdown": f"# Page {i}",
+                        "metadata": {
+                            "sourceURL": f"https://example.com/page{i}",
+                            "title": f"Page {i}",
+                            "statusCode": 200
+                        }
+                    }
+                    for i in range(1, 4)
+                ]
+            }
+        )
 
-            # No batch processing should occur
-            mock_document_processor["batch"].assert_not_called()
+        result = response.json()
+        assert result["status"] == "completed"
+        assert result["pages_processed"] == 3
+        assert result["pages_skipped"] == 3
+
+        # No batch processing should occur
+        mock_document_processor["batch"].assert_not_called()

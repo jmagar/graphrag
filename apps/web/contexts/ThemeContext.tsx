@@ -17,6 +17,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Hydration: Load theme from localStorage after mount
   useEffect(() => {
+    // Only run in browser environment
+    if (typeof window === 'undefined') return;
+
     const storedTheme = localStorage.getItem('theme') as Theme | null;
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
@@ -33,6 +36,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
+
+    // Only access browser APIs in browser environment
+    if (typeof window === 'undefined') return;
+
     localStorage.setItem('theme', newTheme);
 
     if (newTheme === 'dark') {
@@ -55,8 +62,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
+
+  // During SSR, context might be undefined - return safe defaults
   if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    // Return mock implementation for SSR instead of throwing error
+    return {
+      theme: 'light' as Theme,
+      toggleTheme: () => {},
+      setTheme: () => {},
+    };
   }
+
   return context;
 }

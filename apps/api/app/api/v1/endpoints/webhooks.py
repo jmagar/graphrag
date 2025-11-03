@@ -128,11 +128,19 @@ async def firecrawl_webhook(
             
             logger.debug("✅ Webhook signature verified")
             # Parse and validate JSON from verified body
-            payload_dict = json.loads(body.decode("utf-8"))
+            try:
+                payload_dict = json.loads(body.decode("utf-8"))
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in webhook payload: {e}")
+                return {"status": "error", "error": "Invalid JSON payload"}
         else:
             # No secret configured - parse directly (DEBUG mode only)
             logger.debug("⚠️ Webhook processed without signature verification (DEBUG mode)")
-            payload_dict = await request.json()
+            try:
+                payload_dict = await request.json()
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in webhook payload: {e}")
+                return {"status": "error", "error": "Invalid JSON payload"}
 
         # Validate webhook payload with Pydantic (provides type safety)
         try:

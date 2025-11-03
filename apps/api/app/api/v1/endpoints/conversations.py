@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 from app.db.database import get_session
@@ -42,8 +42,7 @@ class MessageResponse(BaseModel):
     extra_data: dict
     sources: List[dict]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConversationCreate(BaseModel):
@@ -66,8 +65,7 @@ class ConversationResponse(BaseModel):
     message_count: int
     last_message_preview: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConversationDetail(ConversationResponse):
@@ -75,8 +73,7 @@ class ConversationDetail(ConversationResponse):
 
     messages: List[MessageResponse]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConversationUpdate(BaseModel):
