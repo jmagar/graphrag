@@ -19,10 +19,8 @@ export default function GraphRAGPage() {
   const messageTimestampsRef = useRef<number[]>([]);
   
   // Conversation store for persistence
-  const { 
-    currentConversation, 
-    loadConversation, 
-    createConversation
+  const {
+    currentConversation
   } = useConversationStore();
 
   // Conversation save hook with rate limiting and deduplication

@@ -92,6 +92,8 @@ export function ClientLayout({
 
   // Set mounted flag after first render (after hydration completes)
   useEffect(() => {
+    // This is intentional - we need to detect client-side hydration
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

@@ -168,6 +168,8 @@ function FileUploadContent({ className, ...props }: FileUploadContentProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    // This is intentional - we need to detect client-side rendering for portal
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
     return () => setMounted(false)
   }, [])

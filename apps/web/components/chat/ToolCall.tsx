@@ -49,43 +49,45 @@ export function ToolCall({ command, args, status = 'running', output, errorText 
     }
   };
 
-  // Convert legacy status to AI SDK v5 state
-  const getToolPartState = (): ToolPart['state'] => {
-    switch (status) {
-      case 'running':
-        return 'input-streaming';
-      case 'complete':
-        return 'output-available';
-      case 'error':
-        return 'output-error';
-      default:
-        return 'input-available';
-    }
-  };
-
-  // Parse output if it exists
-  const parseOutput = (outputString?: string): Record<string, unknown> | undefined => {
-    if (!outputString) return undefined;
-    
-    try {
-      return JSON.parse(outputString);
-    } catch {
-      return { result: outputString };
-    }
-  };
-
   // Generate stable tool ID using useState with lazy initializer (only called once)
   const [toolId] = useState(() => `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
 
   // Create ToolPart structure for prompt-kit Tool component
-  const toolPart: ToolPart = useMemo(() => ({
-    type: cleanName,
-    state: getToolPartState(),
-    input: parseArgs(args),
-    output: parseOutput(output),
-    toolCallId: toolId,
-    errorText,
-  }), [cleanName, status, args, output, errorText, toolId]);
+  const toolPart: ToolPart = useMemo(() => {
+    // Convert legacy status to AI SDK v5 state (inlined to avoid stale closure)
+    const getToolPartState = (): ToolPart['state'] => {
+      switch (status) {
+        case 'running':
+          return 'input-streaming';
+        case 'complete':
+          return 'output-available';
+        case 'error':
+          return 'output-error';
+        default:
+          return 'input-available';
+      }
+    };
+
+    // Parse output if it exists
+    const parseOutput = (outputString?: string): Record<string, unknown> | undefined => {
+      if (!outputString) return undefined;
+
+      try {
+        return JSON.parse(outputString);
+      } catch {
+        return { result: outputString };
+      }
+    };
+
+    return {
+      type: cleanName,
+      state: getToolPartState(),
+      input: parseArgs(args),
+      output: parseOutput(output),
+      toolCallId: toolId,
+      errorText,
+    };
+  }, [cleanName, status, args, output, errorText, toolId]);
 
   return (
     <Tool 
