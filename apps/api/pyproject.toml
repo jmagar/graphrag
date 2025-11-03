@@ -62,12 +62,14 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
     "anyio: mark test to be run with anyio",
+    "integration: mark test as integration test requiring real services",
 ]
 addopts = [
     "-v",
     "--cov=app",
     "--cov-report=term-missing",
     "--cov-report=html",
+    "-m", "not integration",  # Skip integration tests by default
 ]
 
 [tool.coverage.run]
