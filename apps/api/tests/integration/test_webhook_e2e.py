@@ -18,9 +18,9 @@ import hmac
 import hashlib
 import json
 import asyncio
-from typing import List, Dict, Any
+from typing import Dict, Any
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch, MagicMock, call
+from unittest.mock import AsyncMock, patch, MagicMock
 import fakeredis.aioredis
 
 # Import app and dependencies for DI overrides

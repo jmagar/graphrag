@@ -74,7 +74,9 @@ class VectorDBService:
             except UnexpectedResponse as exc:
                 if exc.status_code != 409:
                     raise
-                logger.info(f"Collection {self.collection_name} already created in parallel startup")
+                logger.info(
+                    f"Collection {self.collection_name} already created in parallel startup"
+                )
             else:
                 logger.info(f"Created Qdrant collection: {self.collection_name}")
 
@@ -91,6 +93,7 @@ class VectorDBService:
         embedding: List[float],
         content: str,
         metadata: Dict[str, Any],
+        invalidate_cache: bool = True,
     ):
         """
         Insert or update a document in the vector database.
@@ -100,6 +103,7 @@ class VectorDBService:
             embedding: Vector embedding of the content
             content: The text content
             metadata: Additional metadata (url, title, etc.)
+            invalidate_cache: Whether to invalidate collection cache (default: True)
         """
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
@@ -119,8 +123,8 @@ class VectorDBService:
             wait=True,
         )
 
-        # Invalidate cache for this collection
-        if self.query_cache:
+        # Invalidate cache for this collection (if requested)
+        if invalidate_cache and self.query_cache:
             await self.query_cache.invalidate_collection(self.collection_name)
 
     async def upsert_documents(self, documents: List[Dict[str, Any]]) -> None:
@@ -268,7 +272,7 @@ class VectorDBService:
         info = await self.client.get_collection(collection_name=self.collection_name)
         return {
             "name": self.collection_name,
-            "indexed_vectors_count": info.indexed_vectors_count,  # Breaking change: use indexed_vectors_count instead of vectors_count
+            "indexed_vectors_count": info.indexed_vectors_count,  # Replaces deprecated vectors_count
             "points_count": info.points_count,
             "segments_count": info.segments_count,
             "status": info.status.value if hasattr(info.status, "value") else str(info.status),

@@ -8,9 +8,7 @@ import pytest
 import hmac
 import hashlib
 import json
-import os
 from unittest.mock import patch, AsyncMock
-from app.core.config import settings
 from app.main import app
 from app.dependencies import get_redis_service, get_language_detection_service
 

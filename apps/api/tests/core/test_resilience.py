@@ -3,6 +3,7 @@ Tests for resilience patterns: retry logic and circuit breaker.
 """
 
 import pytest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from app.core.resilience import (
     RetryPolicy,
@@ -90,7 +91,8 @@ class TestCircuitBreaker:
         assert breaker.state == CircuitState.OPEN
         assert breaker.can_attempt() is False
 
-    def test_transitions_to_half_open_after_timeout(self):
+    @pytest.mark.anyio
+    async def test_transitions_to_half_open_after_timeout(self):
         """Test circuit transitions to HALF_OPEN after recovery timeout."""
         config = CircuitBreakerConfig(failure_threshold=2, recovery_timeout=0.1)
         breaker = CircuitBreaker("test", config)
@@ -101,14 +103,14 @@ class TestCircuitBreaker:
         assert breaker.state == CircuitState.OPEN
 
         # Wait for recovery timeout
-        import time
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
 
         # Should transition to HALF_OPEN
         assert breaker.can_attempt() is True
         assert breaker.state == CircuitState.HALF_OPEN
 
-    def test_closes_on_success_in_half_open(self):
+    @pytest.mark.anyio
+    async def test_closes_on_success_in_half_open(self):
         """Test circuit closes after successful request in HALF_OPEN state."""
         config = CircuitBreakerConfig(failure_threshold=2, recovery_timeout=0.1)
         breaker = CircuitBreaker("test", config)
@@ -118,8 +120,7 @@ class TestCircuitBreaker:
         breaker.record_failure()
 
         # Wait and transition to HALF_OPEN
-        import time
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         breaker.can_attempt()
 
         # Record success - should close circuit
@@ -127,7 +128,8 @@ class TestCircuitBreaker:
         assert breaker.state == CircuitState.CLOSED
         assert breaker.failure_count == 0
 
-    def test_reopens_on_failure_in_half_open(self):
+    @pytest.mark.anyio
+    async def test_reopens_on_failure_in_half_open(self):
         """Test circuit reopens if request fails in HALF_OPEN state."""
         config = CircuitBreakerConfig(failure_threshold=2, recovery_timeout=0.1)
         breaker = CircuitBreaker("test", config)
@@ -137,8 +139,7 @@ class TestCircuitBreaker:
         breaker.record_failure()
 
         # Wait and transition to HALF_OPEN
-        import time
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         breaker.can_attempt()
         assert breaker.state == CircuitState.HALF_OPEN
 

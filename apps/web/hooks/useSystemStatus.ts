@@ -55,6 +55,8 @@ export function useSystemStatus() {
 
   // Clear all statuses
   const clearStatuses = useCallback(() => {
+    timersRef.current.forEach((timer) => clearTimeout(timer));
+    timersRef.current.clear();
     setStatuses([]);
   }, []);
 

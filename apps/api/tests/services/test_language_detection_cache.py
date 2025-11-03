@@ -4,7 +4,6 @@ Tests for language detection caching functionality.
 Tests that language detection results are cached to avoid redundant processing.
 """
 
-import pytest
 import time
 from app.services.language_detection import LanguageDetectionService
 

@@ -10,8 +10,7 @@ Priority: CRITICAL - webhook processing has zero test coverage
 """
 import pytest
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch, call
-import hashlib
+from unittest.mock import AsyncMock, patch
 
 from app.main import app
 from app.dependencies import (

@@ -17,7 +17,7 @@ These tests verify:
 
 import pytest
 import httpx
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from app.services.firecrawl import FirecrawlService
 from app.core.config import settings
 

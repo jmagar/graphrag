@@ -60,8 +60,16 @@ async def lifespan(app: FastAPI):
     logger.info("✅ RedisService initialized")
 
     # Initialize QueryCache with Redis client
+    # Check if Redis is available before enabling cache
+    redis_available = False
+    try:
+        await redis_service.client.ping()
+        redis_available = True
+    except Exception as e:
+        logger.warning(f"Redis unavailable: {e}")
+
     query_cache = None
-    if settings.ENABLE_QUERY_CACHE:
+    if settings.ENABLE_QUERY_CACHE and redis_available:
         query_cache = QueryCache(
             redis_client=redis_service.client,
             default_ttl=settings.QUERY_CACHE_TTL,
@@ -77,7 +85,10 @@ async def lifespan(app: FastAPI):
             enabled=False,
         )
         set_query_cache(query_cache)
-        logger.info("⚠️ QueryCache DISABLED via configuration")
+        if not redis_available:
+            logger.warning("⚠️ QueryCache DISABLED - Redis unavailable")
+        else:
+            logger.info("⚠️ QueryCache DISABLED via configuration")
 
     # Initialize VectorDBService with QueryCache
     vector_db_service = VectorDBService(query_cache=query_cache)

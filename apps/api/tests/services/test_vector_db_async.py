@@ -7,7 +7,6 @@ RED Phase: These tests should FAIL initially (no async methods exist yet)
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.services.vector_db import VectorDBService
-from app.core.config import settings
 
 
 @pytest.mark.asyncio
@@ -223,7 +222,7 @@ class TestVectorDBWithCache:
 
             # Perform search
             query_embedding = [0.1] * 1024
-            results = await service.search(query_embedding, limit=5)
+            results = await service.search(query_embedding, limit=5, query_text="test-query")
 
             # Should query Qdrant
             mock_qdrant_client.search.assert_called_once()
@@ -254,7 +253,7 @@ class TestVectorDBWithCache:
 
             # Perform search
             query_embedding = [0.1] * 1024
-            results = await service.search(query_embedding, limit=5)
+            results = await service.search(query_embedding, limit=5, query_text="test-query")
 
             # Should NOT query Qdrant
             mock_qdrant_client.search.assert_not_called()
@@ -281,7 +280,8 @@ class TestVectorDBWithCache:
                 query_embedding,
                 limit=10,
                 score_threshold=0.8,
-                filters={"language": "en"}
+                filters={"language": "en"},
+                query_text="test-query"
             )
 
             # Verify cache.set was called with correct parameters
@@ -355,7 +355,7 @@ class TestVectorDBWithCache:
 
             # Perform search
             query_embedding = [0.1] * 1024
-            results = await service.search(query_embedding, limit=5)
+            results = await service.search(query_embedding, limit=5, query_text="test-query")
 
             # Should query Qdrant directly
             mock_qdrant_client.search.assert_called_once()
@@ -365,6 +365,7 @@ class TestVectorDBWithCache:
 
     async def test_cache_improves_performance(self, mock_qdrant_client, mock_query_cache):
         """Test that cache reduces query time for repeated searches."""
+        import asyncio
         import time
 
         with patch('app.services.vector_db.AsyncQdrantClient', return_value=mock_qdrant_client):
@@ -376,20 +377,22 @@ class TestVectorDBWithCache:
 
             # First search - cache miss (slow)
             mock_query_cache.get.return_value = None
-            mock_qdrant_client.search.side_effect = lambda *args, **kwargs: (
-                time.sleep(0.1),  # Simulate slow DB query
-                [{"id": "doc1", "score": 0.9}]
-            )[1]
+
+            async def slow_search(*args, **kwargs):
+                await asyncio.sleep(0.1)  # Simulate slow DB query
+                return [{"id": "doc1", "score": 0.9}]
+
+            mock_qdrant_client.search.side_effect = slow_search
 
             start = time.time()
-            await service.search(query_embedding)
+            await service.search(query_embedding, query_text="test-query")
             first_query_time = time.time() - start
 
             # Second search - cache hit (fast)
             mock_query_cache.get.return_value = [{"id": "doc1", "score": 0.9}]
 
             start = time.time()
-            await service.search(query_embedding)
+            await service.search(query_embedding, query_text="test-query")
             cached_query_time = time.time() - start
 
             # Cache should be significantly faster
@@ -409,7 +412,7 @@ class TestVectorDBWithCache:
 
             # Search should still work (fall back to database)
             query_embedding = [0.1] * 1024
-            results = await service.search(query_embedding)
+            results = await service.search(query_embedding, query_text="test-query")
 
             # Should query Qdrant despite cache error
             mock_qdrant_client.search.assert_called_once()

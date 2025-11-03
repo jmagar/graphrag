@@ -261,9 +261,14 @@ class CircuitBreaker:
             result = await func(*args, **kwargs)
             self.record_success()
             return result
-        except Exception as e:
+        except httpx.HTTPStatusError as e:
+            # Only count 5xx server errors as failures
+            if 500 <= e.response.status_code < 600:
+                self.record_failure()
+            raise
+        except Exception:
             self.record_failure()
-            raise e
+            raise
 
     def get_state(self) -> CircuitState:
         """Get current circuit state."""
@@ -345,6 +350,11 @@ async def retry_with_backoff(
             raise
 
         except Exception as e:
+            # Check if circuit breaker is open - don't retry
+            if circuit_breaker and circuit_breaker.get_state() == CircuitState.OPEN:
+                logger.error(f"Circuit breaker open, not retrying: {e}")
+                raise
+
             # Unknown exceptions - log and retry (conservative approach)
             last_exception = e
             logger.warning(f"⚠️ Unknown exception type {type(e).__name__}, retrying: {e}")

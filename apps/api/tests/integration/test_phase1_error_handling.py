@@ -21,8 +21,7 @@ import json
 import hmac
 import hashlib
 from httpx import AsyncClient, ConnectError, TimeoutException, ReadTimeout
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
-from pydantic import ValidationError
+from unittest.mock import AsyncMock, MagicMock, patch
 import redis.asyncio as redis
 import redis.exceptions
 

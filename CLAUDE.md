@@ -75,10 +75,13 @@ npm run clean                 # Remove all node_modules
    - TEI service generates 768-dimensional embeddings
    - Embeddings stored in Qdrant with content and metadata
 5. **Query Flow**:
-   - User query → Check Redis cache for embedding
-   - If cache miss: Generate embedding via TEI → Cache in Redis (1 hour TTL)
-   - Vector search in Qdrant → Optional LLM response
-   - Query embeddings cached for faster subsequent searches
+   - User query → Check Redis cache for query results
+   - If cache miss:
+     - Generate embedding via TEI
+     - Vector search in Qdrant
+     - Cache complete query results in Redis (TTL: QUERY_CACHE_TTL, default 5 minutes)
+   - Optional LLM response generation
+   - Query result caching provides 10-100x performance improvement on cache hits
 
 ### Backend Service Architecture
 

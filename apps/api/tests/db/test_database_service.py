@@ -20,7 +20,6 @@ class TestDatabaseService:
     async def test_init_db_creates_tables(self):
         """Test that init_db creates all database tables."""
         from app.db.database import init_db, engine
-        from app.db.models import Base
         from sqlalchemy import inspect
 
         # Initialize database

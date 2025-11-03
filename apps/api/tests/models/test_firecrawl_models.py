@@ -12,7 +12,6 @@ Tests cover:
 
 import pytest
 from pydantic import ValidationError
-from typing import Dict, Any
 
 from app.models.firecrawl import (
     FirecrawlMetadata,
@@ -21,7 +20,6 @@ from app.models.firecrawl import (
     WebhookCrawlPage,
     WebhookCrawlCompleted,
     WebhookCrawlFailed,
-    WebhookPayload,
     WebhookBatchScrapeStarted,
     WebhookBatchScrapePage,
     WebhookBatchScrapeCompleted,

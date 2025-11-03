@@ -10,9 +10,9 @@ TDD Approach: These tests are written first (RED phase) before implementation.
 
 import pytest
 import pytest_asyncio
+import asyncio
 import time
-from typing import Dict, Any
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from fakeredis import FakeAsyncRedis
 
 
@@ -363,7 +363,7 @@ class TestCircuitBreakerWithPersistence:
         assert breaker.state == CircuitState.OPEN
 
         # Wait for recovery timeout
-        time.sleep(0.15)
+        await asyncio.sleep(0.15)
 
         # Attempt request - should transition to HALF_OPEN
         can_attempt = breaker.can_attempt()
@@ -407,7 +407,7 @@ class TestCircuitBreakerWithPersistence:
 
         # Wait for expiration (would need to wait 24h for OPEN state)
         # This test is not practical with auto-TTL
-        time.sleep(1.5)
+        await asyncio.sleep(1.5)
 
         # Try to load - should return None after TTL expires
         loaded_state = await redis_backend.load_state(service_name)

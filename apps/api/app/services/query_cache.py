@@ -56,7 +56,7 @@ class QueryCache:
         """
         # Create deterministic string from query + params
         cache_input = f"{collection}:{query_text}:{json.dumps(params, sort_keys=True)}"
-        query_hash = hashlib.md5(cache_input.encode()).hexdigest()
+        query_hash = hashlib.sha256(cache_input.encode()).hexdigest()
         return f"query_cache:v1:{collection}:{query_hash}"
 
     async def get(
@@ -85,7 +85,9 @@ class QueryCache:
                 cached: Dict[str, Any] = json.loads(data)
                 logger.debug(f"Cache HIT for {collection}: {query_text[:50]}...")
 
-                # Update hit count
+                # Note: Hit count updates have a race condition in distributed deployments
+                # This is acceptable as hit counts are for monitoring/statistics only
+                # For precise atomic counters, use Redis HINCRBY in a separate key
                 cached["metadata"]["hit_count"] = (
                     cached["metadata"].get("hit_count", 0) + 1
                 )
@@ -157,15 +159,22 @@ class QueryCache:
         """
         try:
             pattern = f"query_cache:v1:{collection}:*"
-            keys: List[str] = []
-            async for key in self.redis.scan_iter(match=pattern):
-                keys.append(key)
+            deleted_total = 0
+            batch_size = 1000
+            keys_batch: List[str] = []
 
-            if keys:
-                deleted: int = await self.redis.delete(*keys)
-                logger.info(f"Invalidated {deleted} cache entries for {collection}")
-                return deleted
-            return 0
+            async for key in self.redis.scan_iter(match=pattern):
+                keys_batch.append(key)
+                if len(keys_batch) >= batch_size:
+                    deleted_total += await self.redis.delete(*keys_batch)
+                    keys_batch = []
+
+            if keys_batch:
+                deleted_total += await self.redis.delete(*keys_batch)
+
+            if deleted_total > 0:
+                logger.info(f"Invalidated {deleted_total} cache entries for {collection}")
+            return deleted_total
 
         except Exception as e:
             logger.warning(f"Cache invalidation error: {e}")
@@ -180,15 +189,22 @@ class QueryCache:
         """
         try:
             pattern = "query_cache:v1:*"
-            keys: List[str] = []
-            async for key in self.redis.scan_iter(match=pattern):
-                keys.append(key)
+            deleted_total = 0
+            batch_size = 1000
+            keys_batch: List[str] = []
 
-            if keys:
-                deleted: int = await self.redis.delete(*keys)
-                logger.info(f"Invalidated {deleted} total cache entries")
-                return deleted
-            return 0
+            async for key in self.redis.scan_iter(match=pattern):
+                keys_batch.append(key)
+                if len(keys_batch) >= batch_size:
+                    deleted_total += await self.redis.delete(*keys_batch)
+                    keys_batch = []
+
+            if keys_batch:
+                deleted_total += await self.redis.delete(*keys_batch)
+
+            if deleted_total > 0:
+                logger.info(f"Invalidated {deleted_total} total cache entries")
+            return deleted_total
 
         except Exception as e:
             logger.warning(f"Cache invalidation error: {e}")

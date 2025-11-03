@@ -2,7 +2,7 @@
 Cache management endpoints for query result caching.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Path
 from pydantic import BaseModel
 from typing import Dict, Any
 from app.services.query_cache import QueryCache
@@ -55,6 +55,12 @@ async def invalidate_all_cache(query_cache: QueryCache = Depends(get_query_cache
     This clears the entire query cache across all collections.
     Use with caution as this will force all queries to be re-executed.
     """
+    # TODO: Add authentication/authorization before production deployment
+    # These endpoints should be:
+    # 1. Behind admin-only authentication, OR
+    # 2. Protected by API key, OR
+    # 3. Rate-limited and firewall-protected
+    # Current implementation is NOT production-safe without additional security
     try:
         deleted_count = await query_cache.invalidate_all()
         return CacheInvalidateResponse(
@@ -69,7 +75,8 @@ async def invalidate_all_cache(query_cache: QueryCache = Depends(get_query_cache
 
 @router.delete("/invalidate/collection/{collection}", response_model=CacheInvalidateResponse)
 async def invalidate_collection_cache(
-    collection: str, query_cache: QueryCache = Depends(get_query_cache)
+    collection: str = Path(..., regex="^[a-zA-Z0-9_-]+$", max_length=100),
+    query_cache: QueryCache = Depends(get_query_cache)
 ):
     """
     Invalidate all cached query results for a specific collection.
@@ -80,6 +87,12 @@ async def invalidate_collection_cache(
     This clears cached queries for a specific collection.
     Useful when documents are updated in that collection.
     """
+    # TODO: Add authentication/authorization before production deployment
+    # These endpoints should be:
+    # 1. Behind admin-only authentication, OR
+    # 2. Protected by API key, OR
+    # 3. Rate-limited and firewall-protected
+    # Current implementation is NOT production-safe without additional security
     try:
         deleted_count = await query_cache.invalidate_collection(collection)
         return CacheInvalidateResponse(
