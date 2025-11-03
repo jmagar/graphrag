@@ -14,22 +14,26 @@ from app.services.vector_db import VectorDBService
 from app.services.embeddings import EmbeddingsService
 from app.services.llm import LLMService
 from app.services.redis_service import RedisService
+from app.services.query_cache import QueryCache
 from app.services.language_detection import LanguageDetectionService
 from app.services.graph_db import GraphDBService
 from app.services.entity_extractor import EntityExtractor
 from app.services.relationship_extractor import RelationshipExtractor
+from app.services.hybrid_query import HybridQueryEngine
 from app.dependencies import (
     set_firecrawl_service,
     set_vector_db_service,
     set_embeddings_service,
     set_llm_service,
     set_redis_service,
+    set_query_cache,
     set_language_detection_service,
     set_graph_db_service,
     set_entity_extractor,
     set_relationship_extractor,
     clear_all_services,
 )
+from app.api.v1.endpoints.graph import set_hybrid_query_engine
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +54,33 @@ async def lifespan(app: FastAPI):
     set_firecrawl_service(firecrawl_service)
     logger.info("✅ FirecrawlService initialized")
 
-    vector_db_service = VectorDBService()
+    # Initialize Redis first (required by QueryCache)
+    redis_service = RedisService()
+    set_redis_service(redis_service)
+    logger.info("✅ RedisService initialized")
+
+    # Initialize QueryCache with Redis client
+    query_cache = None
+    if settings.ENABLE_QUERY_CACHE:
+        query_cache = QueryCache(
+            redis_client=redis_service.client,
+            default_ttl=settings.QUERY_CACHE_TTL,
+            enabled=True,
+        )
+        set_query_cache(query_cache)
+        logger.info(f"✅ QueryCache initialized (TTL: {settings.QUERY_CACHE_TTL}s)")
+    else:
+        # Create disabled cache for dependency injection
+        query_cache = QueryCache(
+            redis_client=redis_service.client,
+            default_ttl=settings.QUERY_CACHE_TTL,
+            enabled=False,
+        )
+        set_query_cache(query_cache)
+        logger.info("⚠️ QueryCache DISABLED via configuration")
+
+    # Initialize VectorDBService with QueryCache
+    vector_db_service = VectorDBService(query_cache=query_cache)
     await vector_db_service.initialize()
     set_vector_db_service(vector_db_service)
     logger.info("✅ VectorDBService initialized")
@@ -62,10 +92,6 @@ async def lifespan(app: FastAPI):
     llm_service = LLMService()
     set_llm_service(llm_service)
     logger.info("✅ LLMService initialized")
-
-    redis_service = RedisService()
-    set_redis_service(redis_service)
-    logger.info("✅ RedisService initialized")
 
     lang_service = LanguageDetectionService()
     set_language_detection_service(lang_service)
@@ -84,6 +110,12 @@ async def lifespan(app: FastAPI):
     relationship_extractor = RelationshipExtractor()
     set_relationship_extractor(relationship_extractor)
     logger.info("✅ RelationshipExtractor initialized")
+
+    # Initialize HybridQueryEngine with QueryCache
+    hybrid_query_engine = HybridQueryEngine(query_cache=query_cache)
+    await hybrid_query_engine.vector_db_service.initialize()
+    set_hybrid_query_engine(hybrid_query_engine)
+    logger.info("✅ HybridQueryEngine initialized")
 
     # Validate critical service configuration
     if not settings.FIRECRAWL_URL:
@@ -110,6 +142,12 @@ async def lifespan(app: FastAPI):
         logger.info("⚡ Streaming processing ENABLED - pages processed immediately")
     else:
         logger.info("📦 Batch processing ENABLED - pages processed at crawl completion")
+
+    # Log query cache configuration
+    if settings.ENABLE_QUERY_CACHE:
+        logger.info(f"💾 Query cache ENABLED (TTL: {settings.QUERY_CACHE_TTL}s)")
+    else:
+        logger.info("💾 Query cache DISABLED")
 
     yield
 

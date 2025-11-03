@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     conversations,
     chat,
     graph,
+    cache,
 )
 
 api_router = APIRouter()
@@ -28,4 +29,5 @@ api_router.include_router(map.router, prefix="/map", tags=["map"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(extract.router, prefix="/extract", tags=["extract"])
 api_router.include_router(query.router, prefix="/query", tags=["query"])
+api_router.include_router(cache.router, prefix="/cache", tags=["cache"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

@@ -6,11 +6,15 @@ to provide enhanced context for RAG queries.
 """
 
 import logging
-from typing import List, Dict, Any
+import time
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from app.services.entity_extractor import EntityExtractor
 from app.services.embeddings import EmbeddingsService
 from app.services.vector_db import VectorDBService
 from app.services.graph_db import GraphDBService
+
+if TYPE_CHECKING:
+    from app.services.query_cache import QueryCache
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +22,18 @@ logger = logging.getLogger(__name__)
 class HybridQueryEngine:
     """Orchestrate hybrid queries across vector and graph databases."""
 
-    def __init__(self):
-        """Initialize the hybrid query engine with all required services."""
+    def __init__(self, query_cache: Optional["QueryCache"] = None):
+        """
+        Initialize the hybrid query engine with all required services.
+
+        Args:
+            query_cache: Optional QueryCache instance for caching hybrid query results
+        """
         self.entity_extractor = EntityExtractor()
         self.embeddings_service = EmbeddingsService()
-        self.vector_db_service = VectorDBService()
+        self.vector_db_service = VectorDBService(query_cache=query_cache)
         self.graph_db_service = GraphDBService()
+        self.query_cache = query_cache
         logger.info("Initialized HybridQueryEngine")
 
     async def hybrid_search(
@@ -66,6 +76,22 @@ class HybridQueryEngine:
                 "retrieval_strategy": "none",
             }
 
+        # Try to get cached hybrid search results
+        if self.query_cache:
+            cached_results = await self.query_cache.get(
+                collection="hybrid",
+                query_text=query,
+                vector_limit=vector_limit,
+                graph_depth=graph_depth,
+                rerank=rerank,
+            )
+            if cached_results is not None:
+                logger.debug(f"Returning cached hybrid results for query: {query[:50]}...")
+                return cached_results
+
+        # Cache miss or caching disabled - perform hybrid search
+        start_time = time.time()
+
         # Step 1: Extract entities from query
         query_entities = await self.entity_extractor.extract_entities(query)
         logger.debug(f"Extracted {len(query_entities)} entities from query")
@@ -73,7 +99,7 @@ class HybridQueryEngine:
         # Step 2: Vector search (always performed)
         query_embedding = await self.embeddings_service.generate_embedding(query)
         vector_results = await self.vector_db_service.search(
-            query_embedding=query_embedding, limit=vector_limit
+            query_embedding=query_embedding, limit=vector_limit, query_text=query
         )
         logger.debug(f"Vector search found {len(vector_results)} results")
 
@@ -103,7 +129,7 @@ class HybridQueryEngine:
         elif not vector_results:
             strategy = "graph"
 
-        return {
+        result = {
             "query": query,
             "query_entities": query_entities,
             "vector_results": vector_results,
@@ -111,6 +137,21 @@ class HybridQueryEngine:
             "combined_results": combined_results,
             "retrieval_strategy": strategy,
         }
+
+        # Cache hybrid search results
+        if self.query_cache:
+            query_time_ms = (time.time() - start_time) * 1000
+            await self.query_cache.set(
+                collection="hybrid",
+                query_text=query,
+                results=result,
+                query_time_ms=query_time_ms,
+                vector_limit=vector_limit,
+                graph_depth=graph_depth,
+                rerank=rerank,
+            )
+
+        return result
 
     async def _graph_search(
         self, query_entities: List[Dict[str, Any]], max_depth: int

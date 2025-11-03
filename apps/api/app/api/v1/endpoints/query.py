@@ -60,12 +60,13 @@ async def query_knowledge_base(
         # Generate query embedding
         query_embedding = await embeddings.generate_embedding(request.query)
 
-        # Search vector database
+        # Search vector database (with caching)
         search_results = await vector_db.search(
             query_embedding=query_embedding,
             limit=request.limit,
             score_threshold=request.score_threshold,
             filters=request.filters,
+            query_text=request.query,  # Pass query text for cache key generation
         )
 
         # Convert to response format

@@ -8,6 +8,7 @@ from app.services.vector_db import VectorDBService
 from app.services.embeddings import EmbeddingsService
 from app.services.llm import LLMService
 from app.services.redis_service import RedisService
+from app.services.query_cache import QueryCache
 from app.services.language_detection import LanguageDetectionService
 from app.services.graph_db import GraphDBService
 from app.services.entity_extractor import EntityExtractor
@@ -19,6 +20,7 @@ _vector_db_service: Optional[VectorDBService] = None
 _embeddings_service: Optional[EmbeddingsService] = None
 _llm_service: Optional[LLMService] = None
 _redis_service: Optional[RedisService] = None
+_query_cache: Optional[QueryCache] = None
 _language_detection_service: Optional[LanguageDetectionService] = None
 _graph_db_service: Optional[GraphDBService] = None
 _entity_extractor: Optional[EntityExtractor] = None
@@ -234,6 +236,27 @@ def clear_relationship_extractor() -> None:
     _relationship_extractor = None
 
 
+# QueryCache dependency functions
+def get_query_cache() -> QueryCache:
+    """Get the singleton QueryCache instance."""
+    global _query_cache
+    if _query_cache is None:
+        raise RuntimeError("QueryCache not initialized. Application may not be started.")
+    return _query_cache
+
+
+def set_query_cache(service: QueryCache) -> None:
+    """Set the singleton QueryCache instance."""
+    global _query_cache
+    _query_cache = service
+
+
+def clear_query_cache() -> None:
+    """Clear the singleton QueryCache instance."""
+    global _query_cache
+    _query_cache = None
+
+
 # Utility function to clear all services
 def clear_all_services() -> None:
     """Clear all singleton service instances."""
@@ -242,6 +265,7 @@ def clear_all_services() -> None:
     clear_embeddings_service()
     clear_llm_service()
     clear_redis_service()
+    clear_query_cache()
     clear_language_detection_service()
     clear_graph_db_service()
     clear_entity_extractor()

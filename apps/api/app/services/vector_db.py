@@ -3,7 +3,8 @@ Qdrant vector database service.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+import time
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import (
@@ -17,21 +18,28 @@ from qdrant_client.models import (
 )
 from app.core.config import settings
 
+if TYPE_CHECKING:
+    from app.services.query_cache import QueryCache
+
 logger = logging.getLogger(__name__)
 
 
 class VectorDBService:
     """Service for interacting with Qdrant vector database (async)."""
 
-    def __init__(self):
+    def __init__(self, query_cache: Optional["QueryCache"] = None):
         """
         Initialize the service without blocking operations.
 
         IMPORTANT: Call initialize() after instantiation to ensure
         collection exists before using the service.
+
+        Args:
+            query_cache: Optional QueryCache instance for caching search results
         """
         self.client: Optional[AsyncQdrantClient] = None
         self.collection_name = settings.QDRANT_COLLECTION
+        self.query_cache = query_cache
 
     async def initialize(self) -> None:
         """
@@ -111,6 +119,10 @@ class VectorDBService:
             wait=True,
         )
 
+        # Invalidate cache for this collection
+        if self.query_cache:
+            await self.query_cache.invalidate_collection(self.collection_name)
+
     async def upsert_documents(self, documents: List[Dict[str, Any]]) -> None:
         """
         Insert or update multiple documents in a single batch operation.
@@ -150,12 +162,17 @@ class VectorDBService:
             wait=True,  # Wait for write confirmation
         )
 
+        # Invalidate cache for this collection
+        if self.query_cache:
+            await self.query_cache.invalidate_collection(self.collection_name)
+
     async def search(
         self,
         query_embedding: List[float],
         limit: int = 10,
         score_threshold: Optional[float] = None,
         filters: Optional[Dict[str, Any]] = None,
+        query_text: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for similar documents.
@@ -165,12 +182,29 @@ class VectorDBService:
             limit: Maximum number of results to return
             score_threshold: Minimum similarity score
             filters: Optional filters to apply
+            query_text: Optional query text for cache key generation
 
         Returns:
             List of matching documents with scores
         """
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
+
+        # Try to get cached results if query_text provided
+        if self.query_cache and query_text:
+            cached_results = await self.query_cache.get(
+                collection=self.collection_name,
+                query_text=query_text,
+                limit=limit,
+                score_threshold=score_threshold,
+                filters=filters,
+            )
+            if cached_results is not None:
+                logger.debug(f"Returning cached results for query: {query_text[:50]}...")
+                return cached_results
+
+        # Cache miss or caching disabled - perform search
+        start_time = time.time()
 
         query_filter = None
         if filters:
@@ -190,7 +224,7 @@ class VectorDBService:
             query_filter=query_filter,
         )
 
-        return [
+        formatted_results = [
             {
                 "id": result.id,
                 "score": result.score,
@@ -199,6 +233,21 @@ class VectorDBService:
             }
             for result in results
         ]
+
+        # Cache results if query_text provided
+        if self.query_cache and query_text:
+            query_time_ms = (time.time() - start_time) * 1000
+            await self.query_cache.set(
+                collection=self.collection_name,
+                query_text=query_text,
+                results=formatted_results,
+                query_time_ms=query_time_ms,
+                limit=limit,
+                score_threshold=score_threshold,
+                filters=filters,
+            )
+
+        return formatted_results
 
     async def delete_document(self, doc_id: str):
         """Delete a document from the vector database."""

@@ -3,7 +3,7 @@ Tests for resilience patterns: retry logic and circuit breaker.
 """
 
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from app.core.resilience import (
     RetryPolicy,
     CircuitBreaker,
@@ -356,3 +356,121 @@ class TestPredefinedPolicies:
 
         assert breaker1.state == CircuitState.CLOSED
         assert breaker2.state == CircuitState.CLOSED
+
+
+class TestCircuitBreakerPersistence:
+    """Tests for circuit breaker persistence backend."""
+
+    @pytest.mark.anyio
+    async def test_persistence_backend_save_and_load(self):
+        """Test persistence backend can save and load circuit breaker state."""
+        from app.core.circuit_breaker_persistence import RedisCircuitBreakerBackend
+        from unittest.mock import AsyncMock
+
+        # Mock Redis client
+        mock_redis = MagicMock()
+        mock_redis.set = AsyncMock()
+        mock_redis.get = AsyncMock(return_value='{"state": "open", "failure_count": 5}')
+        mock_redis.delete = AsyncMock()
+
+        backend = RedisCircuitBreakerBackend(mock_redis)
+
+        # Test save_state
+        state = {"state": "open", "failure_count": 5}
+        await backend.save_state("test_service", state)
+        mock_redis.set.assert_called_once()
+
+        # Test load_state
+        loaded_state = await backend.load_state("test_service")
+        assert loaded_state == state
+        mock_redis.get.assert_called_once()
+
+        # Test delete_state
+        await backend.delete_state("test_service")
+        mock_redis.delete.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_circuit_breaker_with_persistence_loads_state(self):
+        """Test CircuitBreaker loads state from persistence backend on initialization."""
+        from app.core.circuit_breaker_persistence import RedisCircuitBreakerBackend
+        from unittest.mock import AsyncMock
+
+        # Mock Redis client with OPEN state
+        mock_redis = MagicMock()
+        mock_redis.get = AsyncMock(return_value='{"state": "open", "failure_count": 5, "opened_at": 1234567890.0}')
+
+        backend = RedisCircuitBreakerBackend(mock_redis)
+
+        # Create circuit breaker with persistence
+        config = CircuitBreakerConfig(failure_threshold=3)
+        breaker = CircuitBreaker("test_service", config, persistence_backend=backend)
+
+        # Load state from backend (since __init__ is synchronous)
+        await breaker.load_from_backend()
+
+        # Verify state was loaded
+        assert breaker.state == CircuitState.OPEN
+        assert breaker.failure_count == 5
+
+    @pytest.mark.anyio
+    async def test_circuit_breaker_persists_state_changes(self):
+        """Test CircuitBreaker persists state changes to backend."""
+        from app.core.circuit_breaker_persistence import RedisCircuitBreakerBackend
+        from unittest.mock import AsyncMock
+        import asyncio
+
+        # Mock Redis client
+        mock_redis = MagicMock()
+        mock_redis.get = AsyncMock(return_value=None)  # No initial state
+        mock_redis.set = AsyncMock()
+
+        backend = RedisCircuitBreakerBackend(mock_redis)
+
+        # Create circuit breaker with persistence
+        config = CircuitBreakerConfig(failure_threshold=2)
+        breaker = CircuitBreaker("test_service", config, persistence_backend=backend)
+
+        # Record failures to open circuit
+        breaker.record_failure()
+        breaker.record_failure()
+
+        # Wait for background tasks to complete
+        await asyncio.sleep(0.1)
+
+        # Verify state was persisted (called after each state change)
+        assert mock_redis.set.call_count >= 1
+        assert breaker.state == CircuitState.OPEN
+
+    @pytest.mark.anyio
+    async def test_persistence_backend_handles_redis_errors_gracefully(self):
+        """Test persistence backend handles Redis errors without breaking circuit breaker."""
+        from app.core.circuit_breaker_persistence import RedisCircuitBreakerBackend
+        from unittest.mock import AsyncMock
+
+        # Mock Redis client that fails
+        mock_redis = MagicMock()
+        mock_redis.set = AsyncMock(side_effect=Exception("Redis connection failed"))
+        mock_redis.get = AsyncMock(side_effect=Exception("Redis connection failed"))
+
+        backend = RedisCircuitBreakerBackend(mock_redis)
+
+        # Should not raise - just log warning
+        await backend.save_state("test", {"state": "closed"})
+        result = await backend.load_state("test")
+
+        # Should return None on error
+        assert result is None
+
+    @pytest.mark.anyio
+    async def test_circuit_breaker_works_without_persistence(self):
+        """Test CircuitBreaker works normally without persistence backend."""
+        config = CircuitBreakerConfig(failure_threshold=2)
+        breaker = CircuitBreaker("test_service", config, persistence_backend=None)
+
+        # Should work normally
+        breaker.record_failure()
+        breaker.record_failure()
+        assert breaker.state == CircuitState.OPEN
+
+        breaker.reset()
+        assert breaker.state == CircuitState.CLOSED

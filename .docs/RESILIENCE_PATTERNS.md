@@ -435,7 +435,161 @@ circuit_state = Gauge(
 
 ---
 
-## 10. Future Enhancements
+## 10. Circuit Breaker State Persistence
+
+### Why Persistence Matters
+
+Circuit breakers track failure state in memory by default. When your application restarts:
+- All circuit breakers reset to CLOSED state
+- If a service was previously OPEN (failing), the first requests after restart will fail immediately
+- This can cause cascading failures during deployment or restart
+- Horizontal scaling requires sharing state across multiple instances
+
+Redis-backed persistence solves this by:
+- Persisting circuit breaker state across restarts
+- Maintaining protection even during deployments
+- Sharing state across multiple instances (horizontal scaling)
+- Providing visibility into circuit breaker health across the cluster
+
+### Current Implementation Status
+
+**Status**: ⚠️ **Not Yet Implemented** (In-Memory Only)
+
+The current circuit breaker implementation in `app/core/resilience.py` maintains state in memory only:
+- Circuit breakers reset on application restart
+- Each instance has independent circuit breaker state
+- State is lost during deployments
+
+### Graceful Degradation When Redis Unavailable
+
+The `RedisService` class already implements graceful degradation:
+
+```python
+class RedisService:
+    def __init__(self):
+        try:
+            self.client = redis.Redis(...)
+            self._available = True
+        except Exception as e:
+            logger.warning(f"Redis connection failed: {e}. Running without Redis.")
+            self.client = None
+            self._available = False
+
+    async def is_available(self) -> bool:
+        if not self.client:
+            return False
+        try:
+            await self.client.ping()
+            return True
+        except Exception:
+            return False
+```
+
+**Graceful Degradation Behavior**:
+1. **Redis Startup Failure**: Application starts normally, Redis operations return default values
+2. **Redis Connection Loss**: Operations fail gracefully, return sensible defaults
+3. **No Data Loss**: Circuit breakers continue working in-memory
+4. **Logging**: All Redis failures are logged for monitoring
+
+### Future Implementation Plan
+
+To add circuit breaker persistence:
+
+**1. Extend CircuitBreaker Class**:
+```python
+class CircuitBreaker:
+    def __init__(self, name: str, config: CircuitBreakerConfig, redis: Optional[RedisService] = None):
+        self.name = name
+        self.config = config
+        self.redis = redis
+        # Load state from Redis if available
+        if self.redis:
+            self._load_state()
+
+    async def _load_state(self):
+        """Load circuit breaker state from Redis."""
+        if not self.redis or not await self.redis.is_available():
+            return
+
+        key = f"circuit:{self.name}:state"
+        state_data = await self.redis.get(key)
+        if state_data:
+            # Restore state, failure_count, last_failure_time
+            pass
+
+    async def _save_state(self):
+        """Save circuit breaker state to Redis."""
+        if not self.redis or not await self.redis.is_available():
+            return
+
+        key = f"circuit:{self.name}:state"
+        state_data = {
+            "state": self.state.value,
+            "failure_count": self.failure_count,
+            "last_failure_time": self.last_failure_time,
+        }
+        # TTL: 1 hour for CLOSED, 24 hours for OPEN
+        ttl = 3600 if self.state == CircuitState.CLOSED else 86400
+        await self.redis.set(key, json.dumps(state_data), ex=ttl)
+```
+
+**2. Configuration**:
+```python
+# In app/core/config.py
+class Settings(BaseSettings):
+    # Circuit Breaker Persistence
+    ENABLE_CIRCUIT_BREAKER_PERSISTENCE: bool = False  # Feature flag
+```
+
+**3. Usage**:
+```python
+from app.core.resilience import get_circuit_breaker
+from app.services.redis_service import RedisService
+
+# With persistence enabled
+redis = RedisService()
+breaker = get_circuit_breaker("firecrawl", redis=redis)
+# State is automatically loaded from Redis and saved on state changes
+```
+
+**4. TTL Strategy**:
+- **CLOSED state**: 1 hour TTL (rapid recovery)
+- **OPEN state**: 24 hours TTL (persistent protection)
+- **HALF_OPEN state**: Same as CLOSED (temporary)
+
+### Benefits of Persistence
+
+**Reliability**:
+- Circuit breaker protection survives restarts
+- No "cold start" failures on deployment
+- Consistent failure protection across deployments
+
+**Horizontal Scaling**:
+- Multiple instances share circuit breaker state
+- Failures detected by one instance protect all instances
+- Consistent user experience across load-balanced requests
+
+**Observability**:
+- Historical circuit breaker state visible in Redis
+- Monitor circuit breaker health via Redis keys
+- Debug issues by inspecting persisted state
+
+### Monitoring Persisted Circuit Breakers
+
+```bash
+# View all circuit breaker states
+redis-cli --scan --pattern "circuit:*:state"
+
+# Check specific circuit breaker
+redis-cli GET circuit:firecrawl:state
+
+# Monitor state changes
+redis-cli MONITOR | grep circuit
+```
+
+---
+
+## 11. Future Enhancements
 
 ### Potential Improvements
 
@@ -443,7 +597,7 @@ circuit_state = Gauge(
 2. **Bulkhead Pattern**: Limit concurrent requests to prevent resource exhaustion
 3. **Rate Limiting**: Per-service rate limits with token bucket
 4. **Fallback Strategies**: Cached responses when service unavailable
-5. **Distributed Circuit Breaker**: Share state across instances via Redis
+5. **Distributed Circuit Breaker**: Share state across instances via Redis (see Section 10)
 
 ### Telemetry Integration
 
@@ -453,7 +607,7 @@ circuit_state = Gauge(
 
 ---
 
-## 11. Summary
+## 12. Summary
 
 **Implemented**:
 - ✅ Retry logic with exponential backoff and jitter

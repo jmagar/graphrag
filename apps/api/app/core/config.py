@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     # Feature Flags
     ENABLE_STREAMING_PROCESSING: bool = True
     ENABLE_LANGUAGE_FILTERING: bool = False  # Disabled by default for safety
+    ENABLE_QUERY_CACHE: bool = True  # Enable Redis query result caching
+    ENABLE_CIRCUIT_BREAKER_PERSISTENCE: bool = False  # Enable Redis-backed circuit breaker state persistence
     DEBUG: bool = False
 
     # Language Filtering
@@ -107,6 +109,9 @@ class Settings(BaseSettings):
     # Language Detection Caching
     LANGUAGE_DETECTION_CACHE_SIZE: int = 1000  # Maximum cached detection results
     LANGUAGE_DETECTION_SAMPLE_SIZE: int = 2000  # Characters to sample for detection
+
+    # Query Cache Configuration
+    QUERY_CACHE_TTL: int = 300  # Default cache TTL in seconds (5 minutes)
 
     # Validators
     @field_validator("REDIS_PORT")
@@ -222,6 +227,8 @@ class Settings(BaseSettings):
             "features": {
                 "streaming_processing": self.ENABLE_STREAMING_PROCESSING,
                 "language_filtering": self.ENABLE_LANGUAGE_FILTERING,
+                "query_cache": self.ENABLE_QUERY_CACHE,
+                "circuit_breaker_persistence": self.ENABLE_CIRCUIT_BREAKER_PERSISTENCE,
             },
             "language": {
                 "allowed": self.allowed_languages_list if self.ENABLE_LANGUAGE_FILTERING else None,
