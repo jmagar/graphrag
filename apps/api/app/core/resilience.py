@@ -75,7 +75,10 @@ class RetryPolicy:
             # 25% is a common industry standard to prevent the thundering herd problem,
             # balancing randomness with predictability. See:
             # https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-            delay += random.uniform(0, delay * 0.25)
+            jitter_cap = max(0.0, self.max_delay - delay)
+            jitter_span = min(delay * 0.25, jitter_cap)
+            if jitter_span > 0:
+                delay += random.uniform(0, jitter_span)
 
         return delay
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 export type SystemMessageType = 'info' | 'warning' | 'error';
 
@@ -20,9 +20,15 @@ export interface SystemStatus {
  */
 export function useSystemStatus() {
   const [statuses, setStatuses] = useState<SystemStatus[]>([]);
+  const timersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Dismiss a specific status (declared first to avoid hoisting issues)
   const dismissStatus = useCallback((id: string) => {
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
     setStatuses((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
@@ -42,9 +48,9 @@ export function useSystemStatus() {
     if (newStatus.duration && newStatus.duration > 0) {
       const timer = setTimeout(() => {
         dismissStatus(id);
+        timersRef.current.delete(id);
       }, newStatus.duration);
-
-      return () => clearTimeout(timer);
+      timersRef.current.set(id, timer);
     }
   }, [dismissStatus]);
 
@@ -106,6 +112,14 @@ export function useSystemStatus() {
 
     checkConnectivity();
   }, [showError]);
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timer) => clearTimeout(timer));
+      timersRef.current.clear();
+    };
+  }, []);
 
   return {
     statuses,

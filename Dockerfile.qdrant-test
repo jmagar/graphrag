@@ -1,0 +1,13 @@
+# Custom Qdrant image for integration testing with healthcheck support
+# Based on qdrant/qdrant:v1.12.0 with curl added for docker-compose healthchecks
+
+FROM qdrant/qdrant:v1.12.0
+
+# Install curl for healthcheck support
+# Using --no-install-recommends to keep image size minimal
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Inherit all other configuration from base image
+# This includes EXPOSE, WORKDIR, CMD, etc.

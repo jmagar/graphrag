@@ -6,7 +6,9 @@ version: '3.8'
 services:
   # Qdrant Vector Database
   qdrant:
-    image: qdrant/qdrant:v1.12.0
+    build:
+      context: .
+      dockerfile: Dockerfile.qdrant-test
     container_name: graphrag-test-qdrant
     ports:
       - "4203:6333"  # Map to expected port
@@ -15,7 +17,7 @@ services:
     volumes:
       - qdrant_test_data:/qdrant/storage
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

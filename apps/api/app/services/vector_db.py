@@ -5,6 +5,7 @@ Qdrant vector database service.
 import logging
 from typing import List, Dict, Any, Optional
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import (
     Distance,
     VectorParams,
@@ -57,11 +58,17 @@ class VectorDBService:
         if self.collection_name not in collection_names:
             # Create collection with appropriate vector size
             # Qwen3-Embedding-0.6B outputs 1024 dimensions
-            await self.client.create_collection(
-                collection_name=self.collection_name,
-                vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
-            )
-            logger.info(f"Created Qdrant collection: {self.collection_name}")
+            try:
+                await self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+                )
+            except UnexpectedResponse as exc:
+                if exc.status_code != 409:
+                    raise
+                logger.info(f"Collection {self.collection_name} already created in parallel startup")
+            else:
+                logger.info(f"Created Qdrant collection: {self.collection_name}")
 
     async def close(self) -> None:
         """Close the Qdrant client connection."""

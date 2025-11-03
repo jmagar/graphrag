@@ -54,6 +54,7 @@ function useTextStream({
   const streamRef = useRef<AbortController | null>(null)
   const completedRef = useRef(false)
   const onCompleteRef = useRef(onComplete)
+  const onErrorRef = useRef(onError)
 
   useEffect(() => {
     speedRef.current = speed
@@ -66,6 +67,10 @@ function useTextStream({
   useEffect(() => {
     onCompleteRef.current = onComplete
   }, [onComplete])
+
+  useEffect(() => {
+    onErrorRef.current = onError
+  }, [onError])
 
   const getChunkSize = useCallback(() => {
     if (typeof characterChunkSizeRef.current === "number") {
@@ -132,10 +137,10 @@ function useTextStream({
             index,
           }))
         setSegments(newSegments)
-        onError?.(error)
+        onErrorRef.current?.(error)
       }
     }
-  }, [onError])
+  }, [])
 
   const markComplete = useCallback(() => {
     if (!completedRef.current) {
@@ -221,10 +226,10 @@ function useTextStream({
       } catch (error) {
         console.error("Error processing text stream:", error)
         markComplete()
-        onError?.(error)
+        onErrorRef.current?.(error)
       }
     },
-    [updateSegments, markComplete, onError]
+    [updateSegments, markComplete]
   )
 
   const startStreaming = useCallback(() => {
@@ -282,6 +287,7 @@ export type ResponseStreamProps = {
   speed?: number // 1-100, where 1 is slowest and 100 is fastest
   className?: string
   onComplete?: () => void
+  onError?: (error: unknown) => void
   as?: keyof React.JSX.IntrinsicElements // Element type to render
   fadeDuration?: number // Custom fade duration in ms (overrides speed)
   segmentDelay?: number // Custom delay between segments in ms (overrides speed)
@@ -294,6 +300,7 @@ function ResponseStream({
   speed = 20,
   className = "",
   onComplete,
+  onError,
   as = "div",
   fadeDuration,
   segmentDelay,
@@ -312,6 +319,7 @@ function ResponseStream({
     speed,
     mode,
     onComplete,
+    onError,
     fadeDuration,
     segmentDelay,
     characterChunkSize,

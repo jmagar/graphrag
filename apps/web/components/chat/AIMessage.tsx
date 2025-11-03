@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import NextImage from 'next/image';
 import { Avatar } from './Avatar';
 import { MessageActions } from './MessageActions';
 import { Artifact } from './Artifact';
@@ -36,16 +35,12 @@ const markdownComponents = {
       const mediaType = mediaTypeStr?.replace('data:', '').replace(';base64', '') || 'image/png';
       return <Image base64={base64Data} mediaType={mediaType} alt={alt || 'AI-generated image'} className="my-4" />;
     }
-    // Regular URL image - use next/image with unoptimized for external URLs
+    // External URLs from markdown - domains are unpredictable, use regular img
     return (
-      <NextImage
+      <img
         src={src}
         alt={alt || 'Image'}
-        className="my-4 rounded-lg max-w-full"
-        width={800}
-        height={600}
-        style={{ width: 'auto', height: 'auto' }}
-        unoptimized
+        className="my-4 rounded-lg max-w-full h-auto"
       />
     );
   },

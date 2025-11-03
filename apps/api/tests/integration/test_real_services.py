@@ -8,6 +8,7 @@ Run with:
     pytest tests/integration/test_real_services.py -v
 """
 
+import asyncio
 import os
 import pytest
 from qdrant_client import AsyncQdrantClient, models

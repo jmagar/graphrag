@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import NextImage from "next/image"
 // Temporarily disabled to fix build issue
 // import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
@@ -12,17 +11,24 @@ const AvatarPrimitive = {
   Root: ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div className={className} {...props} />
   ),
-  Image: ({ className, src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <NextImage
-      className={className}
-      src={src || ''}
-      alt={alt || ''}
-      width={32}
-      height={32}
-      unoptimized
-      {...props}
-    />
-  ),
+  Image: ({ className, src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    // Don't render if no src provided
+    if (!src) {
+      return null;
+    }
+
+    // Using regular img for avatars - this is a temporary fallback implementation
+    return (
+      <img
+        className={className}
+        src={src}
+        alt={alt || ''}
+        width={32}
+        height={32}
+        {...props}
+      />
+    );
+  },
   Fallback: ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div className={className} {...props}>{children}</div>
   ),
