@@ -7,8 +7,6 @@
  * 3. Toast notifications instead of alert()
  */
 
-import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
 // Mock fetch globally
@@ -242,11 +240,11 @@ describe('Chat Page Cleanup and Error Handling', () => {
       });
 
       const response = await fetch('/api/scrape');
-      
+
       let parseError = false;
       try {
         await response.json();
-      } catch (error) {
+      } catch {
         parseError = true;
       }
 

@@ -98,7 +98,8 @@ def mock_vector_db_service():
         return_value={
             "name": "graphrag",
             "points_count": 100,
-            "vectors_count": 100,
+            "indexed_vectors_count": 100,
+            "segments_count": 10,
             "status": "green",
         }
     )

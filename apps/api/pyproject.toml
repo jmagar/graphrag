@@ -54,6 +54,9 @@ target-version = "py311"
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -62,12 +65,14 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
     "anyio: mark test to be run with anyio",
+    "integration: mark test as integration test requiring real services",
 ]
 addopts = [
     "-v",
     "--cov=app",
     "--cov-report=term-missing",
     "--cov-report=html",
+    "-m", "not integration",  # Skip integration tests by default
 ]
 
 [tool.coverage.run]

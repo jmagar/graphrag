@@ -68,19 +68,19 @@ async def scrape_url(
         options = {"formats": request.formats}
 
         result = await firecrawl_service.scrape_url(str(request.url), options)
-        
+
         # Store in background if successful
         if result.get("success"):
             data = result.get("data", {})
             content = data.get("markdown", "")
-            
+
             if content:
                 background_tasks.add_task(
                     process_and_store_document,
                     content=content,
                     source_url=str(request.url),
                     metadata=data.get("metadata", {}),
-                    source_type="scrape"
+                    source_type="scrape",
                 )
 
         return {"success": result.get("success", True), "data": result.get("data", {})}

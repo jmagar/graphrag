@@ -7,7 +7,7 @@ are skipped in crawl.completed events to avoid duplicate processing.
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch
 from app.main import app
 from app.dependencies import get_redis_service, get_language_detection_service
 

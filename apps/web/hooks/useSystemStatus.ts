@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 export type SystemMessageType = 'info' | 'warning' | 'error';
 
@@ -20,6 +20,17 @@ export interface SystemStatus {
  */
 export function useSystemStatus() {
   const [statuses, setStatuses] = useState<SystemStatus[]>([]);
+  const timersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  // Dismiss a specific status (declared first to avoid hoisting issues)
+  const dismissStatus = useCallback((id: string) => {
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+    setStatuses((prev) => prev.filter((s) => s.id !== id));
+  }, []);
 
   // Add a new system message
   const addStatus = useCallback((status: Omit<SystemStatus, 'id'>) => {
@@ -38,18 +49,14 @@ export function useSystemStatus() {
       const timer = setTimeout(() => {
         dismissStatus(id);
       }, newStatus.duration);
-
-      return () => clearTimeout(timer);
+      timersRef.current.set(id, timer);
     }
-  }, []);
-
-  // Dismiss a specific status
-  const dismissStatus = useCallback((id: string) => {
-    setStatuses((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+  }, [dismissStatus]);
 
   // Clear all statuses
   const clearStatuses = useCallback(() => {
+    timersRef.current.forEach((timer) => clearTimeout(timer));
+    timersRef.current.clear();
     setStatuses([]);
   }, []);
 
@@ -106,6 +113,14 @@ export function useSystemStatus() {
 
     checkConnectivity();
   }, [showError]);
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timer) => clearTimeout(timer));
+      timersRef.current.clear();
+    };
+  }, []);
 
   return {
     statuses,

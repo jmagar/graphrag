@@ -14,17 +14,17 @@ logger = logging.getLogger(__name__)
 
 # Supported entity types for extraction
 ENTITY_TYPES = [
-    "PERSON",           # People (Alice Johnson, Dr. Smith)
-    "ORG",              # Organizations (Microsoft, MIT)
-    "GPE",              # Geopolitical entities (Seattle, USA)
-    "LOCATION",         # Non-GPE locations (Office 405, Building A)
-    "LOC",              # Locations (alternate spaCy label)
-    "PRODUCT",          # Products, tools (Python, Neo4j)
-    "EVENT",            # Events (Conference 2023, Launch)
-    "WORK_OF_ART",      # Documents, papers, books
-    "DATE",             # Temporal entities
-    "NORP",             # Nationalities or religious or political groups
-    "FAC",              # Buildings, airports, highways, bridges, etc.
+    "PERSON",  # People (Alice Johnson, Dr. Smith)
+    "ORG",  # Organizations (Microsoft, MIT)
+    "GPE",  # Geopolitical entities (Seattle, USA)
+    "LOCATION",  # Non-GPE locations (Office 405, Building A)
+    "LOC",  # Locations (alternate spaCy label)
+    "PRODUCT",  # Products, tools (Python, Neo4j)
+    "EVENT",  # Events (Conference 2023, Launch)
+    "WORK_OF_ART",  # Documents, papers, books
+    "DATE",  # Temporal entities
+    "NORP",  # Nationalities or religious or political groups
+    "FAC",  # Buildings, airports, highways, bridges, etc.
 ]
 
 
@@ -125,9 +125,7 @@ class EntityExtractor:
         entities = await self.extract_entities(text)
 
         # Filter by confidence
-        filtered_entities = [
-            e for e in entities if e["confidence"] >= min_confidence
-        ]
+        filtered_entities = [e for e in entities if e["confidence"] >= min_confidence]
 
         logger.debug(
             f"Filtered {len(entities)} entities to {len(filtered_entities)} "

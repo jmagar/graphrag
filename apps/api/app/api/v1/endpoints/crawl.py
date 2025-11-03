@@ -49,7 +49,7 @@ class CrawlStatusResponse(BaseModel):
 async def start_crawl(
     request: CrawlRequest,
     background_tasks: BackgroundTasks,
-    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
+    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service),
 ):
     """
     Start a new crawl job using Firecrawl v2 API.
@@ -98,8 +98,7 @@ async def start_crawl(
 
 @router.get("/{crawl_id}", response_model=CrawlStatusResponse)
 async def get_crawl_status(
-    crawl_id: str,
-    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
+    crawl_id: str, firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
 ):
     """
     Get the status of a crawl job.
@@ -115,8 +114,7 @@ async def get_crawl_status(
 
 @router.delete("/{crawl_id}")
 async def cancel_crawl(
-    crawl_id: str,
-    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
+    crawl_id: str, firecrawl_service: FirecrawlService = Depends(get_firecrawl_service)
 ):
     """Cancel a running crawl job."""
     try:

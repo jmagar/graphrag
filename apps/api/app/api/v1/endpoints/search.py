@@ -37,10 +37,7 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/", response_model=SearchResponse)
-async def search_web(
-    request: SearchRequest,
-    background_tasks: BackgroundTasks
-):
+async def search_web(request: SearchRequest, background_tasks: BackgroundTasks):
     """
     Search the web and get full page content.
 
@@ -52,25 +49,27 @@ async def search_web(
         result = await firecrawl_service.search_web(request.query, options)
 
         raw_results = result.get("data", [])
-        
+
         # Prepare batch of documents to store
         documents = []
         for item in raw_results:
             content = item.get("markdown", item.get("html", ""))
             url = item.get("url", "")
-            
+
             if content and url:
-                documents.append({
-                    "content": content,
-                    "source_url": url,
-                    "metadata": item.get("metadata", {}),
-                    "source_type": "search"
-                })
-        
+                documents.append(
+                    {
+                        "content": content,
+                        "source_url": url,
+                        "metadata": item.get("metadata", {}),
+                        "source_type": "search",
+                    }
+                )
+
         # Store ALL documents in ONE background task (batch processing)
         if documents:
             background_tasks.add_task(process_and_store_documents_batch, documents)
-        
+
         # Format response
         results = [
             {

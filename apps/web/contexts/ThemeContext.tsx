@@ -24,6 +24,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
     const initialTheme = storedTheme || (prefersDark ? 'dark' : 'light');
+
+    // Set initial theme state and apply to document atomically
+    // This is intentional - we need to initialize from localStorage on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThemeState(initialTheme);
 
     // Apply theme to document

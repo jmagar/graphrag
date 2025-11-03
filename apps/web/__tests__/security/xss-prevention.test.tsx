@@ -28,7 +28,9 @@ jest.mock('@/components/crawl/CrawlProgress', () => ({
 
 // Mock react-markdown to avoid ESM issues
 jest.mock('react-markdown', () => {
-  return ({ children }: { children: string }) => <div>{children}</div>;
+  const MockMarkdown = ({ children }: { children: string }) => <div>{children}</div>;
+  MockMarkdown.displayName = 'MockMarkdown';
+  return MockMarkdown;
 });
 
 describe('XSS Prevention in AI Messages', () => {

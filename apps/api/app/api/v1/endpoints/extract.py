@@ -62,22 +62,19 @@ async def extract_data(
             request.extraction_schema,
             {"scrapeOptions": scrape_options} if scrape_options else None,
         )
-        
+
         # Store extracted data in background
         data = result.get("data", {})
-        
+
         # Convert structured data to JSON string for embedding
         content = json.dumps(data, indent=2)
-        
+
         background_tasks.add_task(
             process_and_store_document,
             content=content,
             source_url=str(request.url),
-            metadata={
-                "extraction_schema": request.extraction_schema,
-                **data.get("metadata", {})
-            },
-            source_type="extract"
+            metadata={"extraction_schema": request.extraction_schema, **data.get("metadata", {})},
+            source_type="extract",
         )
 
         return {"success": True, "data": data}
@@ -86,13 +83,13 @@ async def extract_data(
         logger.exception("Validation error during extraction")
         raise HTTPException(status_code=400, detail=f"Invalid request: {str(e)}")
 
-    except asyncio.TimeoutError as e:
+    except asyncio.TimeoutError:
         logger.exception("Timeout error during extraction")
         raise HTTPException(
             status_code=504, detail="Extraction request timed out. Please try again."
         )
 
-    except aiohttp.ClientError as e:
+    except aiohttp.ClientError:
         logger.exception("Network error during extraction")
         raise HTTPException(status_code=502, detail="Failed to connect to extraction service")
 

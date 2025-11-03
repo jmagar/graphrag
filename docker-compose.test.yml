@@ -1,0 +1,66 @@
+version: '3.8'
+
+# Docker Compose for integration testing with real services
+# Usage: docker-compose -f docker-compose.test.yml up -d
+
+services:
+  # Qdrant Vector Database
+  qdrant:
+    build:
+      context: .
+      dockerfile: Dockerfile.qdrant-test
+    container_name: graphrag-test-qdrant
+    ports:
+      - "4203:6333"  # Map to expected port
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    volumes:
+      - qdrant_test_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and deduplication
+  redis:
+    image: redis:7-alpine
+    container_name: graphrag-test-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5.23-community
+    container_name: graphrag-test-neo4j
+    ports:
+      - "7687:7687"  # Bolt
+      - "7474:7474"  # HTTP
+    environment:
+      - NEO4J_AUTH=neo4j/testpassword123
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j_test_data:/data
+      - neo4j_test_logs:/logs
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "testpassword123", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  qdrant_test_data:
+  redis_test_data:
+  neo4j_test_data:
+  neo4j_test_logs:

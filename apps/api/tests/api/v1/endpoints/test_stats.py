@@ -21,20 +21,20 @@ async def test_get_collection_stats_returns_valid_structure():
         # Verify required fields exist
         assert "name" in data
         assert "points_count" in data
-        assert "vectors_count" in data
+        assert "indexed_vectors_count" in data
         assert "status" in data
 
         # Verify data types
         assert isinstance(data["name"], str)
         assert isinstance(data["points_count"], int)
-        # vectors_count can be None or int depending on Qdrant version
-        assert data["vectors_count"] is None or isinstance(data["vectors_count"], int)
+        # indexed_vectors_count can be None or int depending on Qdrant version
+        assert data["indexed_vectors_count"] is None or isinstance(data["indexed_vectors_count"], int)
         assert isinstance(data["status"], str)
 
         # Points count should be non-negative
         assert data["points_count"] >= 0
-        if data["vectors_count"] is not None:
-            assert data["vectors_count"] >= 0
+        if data["indexed_vectors_count"] is not None:
+            assert data["indexed_vectors_count"] >= 0
 
 
 async def test_get_collection_stats_includes_storage_info():

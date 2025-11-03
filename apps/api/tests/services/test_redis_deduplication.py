@@ -15,8 +15,7 @@ Uses fakeredis for isolated, fast testing without external dependencies.
 
 import pytest
 import pytest_asyncio
-import logging
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from fakeredis import FakeAsyncRedis
 from app.services.redis_service import RedisService
 

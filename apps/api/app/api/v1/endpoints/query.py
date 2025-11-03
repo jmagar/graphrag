@@ -8,11 +8,7 @@ from typing import List, Dict, Any, Optional
 from app.services.embeddings import EmbeddingsService
 from app.services.vector_db import VectorDBService
 from app.services.llm import LLMService
-from app.dependencies import (
-    get_embeddings_service,
-    get_vector_db_service,
-    get_llm_service
-)
+from app.dependencies import get_embeddings_service, get_vector_db_service, get_llm_service
 
 router = APIRouter()
 
@@ -50,7 +46,7 @@ async def query_knowledge_base(
     request: QueryRequest,
     embeddings: EmbeddingsService = Depends(get_embeddings_service),
     vector_db: VectorDBService = Depends(get_vector_db_service),
-    llm: LLMService = Depends(get_llm_service)
+    llm: LLMService = Depends(get_llm_service),
 ):
     """
     Query the knowledge base using semantic search and optional LLM generation.
@@ -64,12 +60,13 @@ async def query_knowledge_base(
         # Generate query embedding
         query_embedding = await embeddings.generate_embedding(request.query)
 
-        # Search vector database
+        # Search vector database (with caching)
         search_results = await vector_db.search(
             query_embedding=query_embedding,
             limit=request.limit,
             score_threshold=request.score_threshold,
             filters=request.filters,
+            query_text=request.query,  # Pass query text for cache key generation
         )
 
         # Convert to response format
@@ -109,9 +106,7 @@ async def query_knowledge_base(
 
 
 @router.get("/collection/info")
-async def get_collection_info(
-    vector_db: VectorDBService = Depends(get_vector_db_service)
-):
+async def get_collection_info(vector_db: VectorDBService = Depends(get_vector_db_service)):
     """Get information about the vector database collection."""
     try:
         info = await vector_db.get_collection_info()

@@ -35,8 +35,14 @@ const markdownComponents = {
       const mediaType = mediaTypeStr?.replace('data:', '').replace(';base64', '') || 'image/png';
       return <Image base64={base64Data} mediaType={mediaType} alt={alt || 'AI-generated image'} className="my-4" />;
     }
-    // Regular URL image
-    return <img src={src} alt={alt || 'Image'} className="my-4 rounded-lg max-w-full" />;
+    // External URLs from markdown - domains are unpredictable, use regular img
+    return (
+      <img
+        src={src}
+        alt={alt || 'Image'}
+        className="my-4 rounded-lg max-w-full h-auto"
+      />
+    );
   },
 
   // Code blocks - use prompt-kit CodeBlock

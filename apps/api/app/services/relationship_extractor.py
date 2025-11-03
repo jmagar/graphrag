@@ -14,25 +14,25 @@ logger = logging.getLogger(__name__)
 
 # Common relationship types
 RELATIONSHIP_TYPES = [
-    "WORKS_AT",         # Person works at organization
-    "WORKS_FOR",        # Person works for organization
-    "EMPLOYED_BY",      # Person employed by organization
-    "LOCATED_IN",       # Entity located in place
-    "BASED_IN",         # Organization based in location
-    "COLLABORATES_WITH", # Person collaborates with person
-    "WORKS_WITH",       # Person works with person
-    "KNOWS",            # Person knows person
-    "CREATES",          # Entity creates product/work
-    "BUILDS",           # Entity builds product
-    "DEVELOPS",         # Entity develops product
-    "PART_OF",          # Entity is part of larger entity
-    "MEMBER_OF",        # Person is member of organization
-    "MANAGES",          # Person manages entity
-    "LEADS",            # Person leads entity/project
-    "FOUNDED",          # Person founded organization
-    "OWNS",             # Entity owns entity
-    "USES",             # Entity uses product/technology
-    "IMPLEMENTS",       # Entity implements technology
+    "WORKS_AT",  # Person works at organization
+    "WORKS_FOR",  # Person works for organization
+    "EMPLOYED_BY",  # Person employed by organization
+    "LOCATED_IN",  # Entity located in place
+    "BASED_IN",  # Organization based in location
+    "COLLABORATES_WITH",  # Person collaborates with person
+    "WORKS_WITH",  # Person works with person
+    "KNOWS",  # Person knows person
+    "CREATES",  # Entity creates product/work
+    "BUILDS",  # Entity builds product
+    "DEVELOPS",  # Entity develops product
+    "PART_OF",  # Entity is part of larger entity
+    "MEMBER_OF",  # Person is member of organization
+    "MANAGES",  # Person manages entity
+    "LEADS",  # Person leads entity/project
+    "FOUNDED",  # Person founded organization
+    "OWNS",  # Entity owns entity
+    "USES",  # Entity uses product/technology
+    "IMPLEMENTS",  # Entity implements technology
 ]
 
 
@@ -45,9 +45,7 @@ class RelationshipExtractor:
         logger.info("Initialized RelationshipExtractor with LLM service")
 
     async def extract_relationships(
-        self,
-        text: str,
-        entities: List[Dict[str, Any]]
+        self, text: str, entities: List[Dict[str, Any]]
     ) -> List[Tuple[str, str, str]]:
         """
         Extract relationships between entities in text using LLM.
@@ -79,7 +77,7 @@ class RelationshipExtractor:
 
         # Build entity list for prompt
         entity_list = [f"{e['text']} ({e['type']})" for e in entities]
-        entity_names = [e['text'] for e in entities]
+        entity_names = [e["text"] for e in entities]
 
         # Build prompt for LLM
         prompt = self._build_extraction_prompt(text, entity_list)
@@ -90,7 +88,7 @@ class RelationshipExtractor:
             response = await self.llm_service.generate_response(
                 query=prompt,
                 context="",
-                system_prompt="You are a relationship extraction assistant. Extract only the relationships requested and return them in the specified JSON format."
+                system_prompt="You are a relationship extraction assistant. Extract only the relationships requested and return them in the specified JSON format.",
             )
 
             # Parse LLM response
@@ -107,11 +105,7 @@ class RelationshipExtractor:
             logger.error(f"Failed to extract relationships: {e}")
             return []
 
-    def _build_extraction_prompt(
-        self,
-        text: str,
-        entity_list: List[str]
-    ) -> str:
+    def _build_extraction_prompt(self, text: str, entity_list: List[str]) -> str:
         """
         Build a prompt for the LLM to extract relationships.
 
@@ -128,7 +122,7 @@ class RelationshipExtractor:
 
 Text: {text}
 
-Entities found: {', '.join(entity_list)}
+Entities found: {", ".join(entity_list)}
 
 Identify semantic relationships between these entities. For each relationship, provide:
 - Source entity (exact text match from entities list)
@@ -159,9 +153,7 @@ Rules:
         return prompt
 
     def _parse_llm_response(
-        self,
-        response: str,
-        entity_names: List[str]
+        self, response: str, entity_names: List[str]
     ) -> List[Tuple[str, str, str]]:
         """
         Parse LLM response into relationship tuples.
@@ -180,14 +172,14 @@ Rules:
             response = response.strip()
 
             # Try to find JSON array in response
-            start_idx = response.find('[')
-            end_idx = response.rfind(']')
+            start_idx = response.find("[")
+            end_idx = response.rfind("]")
 
             if start_idx == -1 or end_idx == -1:
                 logger.warning("No JSON array found in LLM response")
                 return []
 
-            json_str = response[start_idx:end_idx + 1]
+            json_str = response[start_idx : end_idx + 1]
             parsed = json.loads(json_str)
 
             # Validate and convert to tuples
@@ -206,8 +198,7 @@ Rules:
                 # Validate entities are in the original entity list
                 if source not in entity_names or target not in entity_names:
                     logger.debug(
-                        f"Skipping relationship with invalid entities: "
-                        f"{source} -> {target}"
+                        f"Skipping relationship with invalid entities: {source} -> {target}"
                     )
                     continue
 

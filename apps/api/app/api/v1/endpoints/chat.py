@@ -19,11 +19,7 @@ from app.db.models import Conversation, Message
 from app.services.embeddings import EmbeddingsService
 from app.services.vector_db import VectorDBService
 from app.services.llm import LLMService
-from app.dependencies import (
-    get_embeddings_service,
-    get_vector_db_service,
-    get_llm_service
-)
+from app.dependencies import get_embeddings_service, get_vector_db_service, get_llm_service
 
 router = APIRouter()
 
@@ -101,7 +97,7 @@ async def chat(
     db: AsyncSession = Depends(get_session),
     embeddings: EmbeddingsService = Depends(get_embeddings_service),
     vector_db: VectorDBService = Depends(get_vector_db_service),
-    llm: LLMService = Depends(get_llm_service)
+    llm: LLMService = Depends(get_llm_service),
 ):
     """
     Chat with RAG system and conversation persistence.

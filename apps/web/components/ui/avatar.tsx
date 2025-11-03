@@ -11,9 +11,24 @@ const AvatarPrimitive = {
   Root: ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div className={className} {...props} />
   ),
-  Image: ({ className, src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <img className={className} src={src} alt={alt} {...props} />
-  ),
+  Image: ({ className, src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    // Don't render if no src provided
+    if (!src) {
+      return null;
+    }
+
+    // Using regular img for avatars - this is a temporary fallback implementation
+    return (
+      <img
+        className={className}
+        src={src}
+        alt={alt || ''}
+        width={32}
+        height={32}
+        {...props}
+      />
+    );
+  },
   Fallback: ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div className={className} {...props}>{children}</div>
   ),
