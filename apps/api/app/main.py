@@ -44,20 +44,38 @@ async def lifespan(app: FastAPI):
     Application lifespan manager with proper resource cleanup.
     """
     # Startup: Initialize services
-    logger.info("🚀 Starting GraphRAG API...")
+    logger.info("=" * 80)
+    logger.info("🚀 Starting GraphRAG API v%s", settings.VERSION)
+    logger.info("=" * 80)
+    
+    # Log configuration summary
+    logger.info("📋 Configuration Summary:")
+    logger.info("  • Debug Mode: %s", "ON" if settings.DEBUG else "OFF")
+    logger.info("  • Firecrawl: %s", settings.FIRECRAWL_URL)
+    logger.info("  • Qdrant: %s", settings.QDRANT_URL)
+    logger.info("  • TEI Embeddings: %s", settings.TEI_URL)
+    logger.info("  • Neo4j: %s", settings.NEO4J_URI)
+    logger.info("  • Redis: %s:%d", settings.REDIS_HOST, settings.REDIS_PORT)
+    if settings.OLLAMA_URL:
+        logger.info("  • Ollama: %s (model: %s)", settings.OLLAMA_URL, settings.OLLAMA_MODEL)
+    logger.info("-" * 80)
 
     # Initialize database
+    logger.info("🗄️  Initializing SQLite database...")
     await init_db()
+    logger.info("✅ SQLite database initialized")
 
     # Initialize all service singletons
+    logger.info("🔧 Initializing services...")
+    
     firecrawl_service = FirecrawlService()
     set_firecrawl_service(firecrawl_service)
-    logger.info("✅ FirecrawlService initialized")
+    logger.info("  ✅ FirecrawlService initialized")
 
     # Initialize Redis first (required by QueryCache)
+    logger.info("🔌 Connecting to Redis at %s:%d...", settings.REDIS_HOST, settings.REDIS_PORT)
     redis_service = RedisService()
     set_redis_service(redis_service)
-    logger.info("✅ RedisService initialized")
 
     # Initialize QueryCache with Redis client
     # Check if Redis is available before enabling cache
@@ -65,8 +83,9 @@ async def lifespan(app: FastAPI):
     try:
         await redis_service.client.ping()
         redis_available = True
+        logger.info("  ✅ Redis connection verified")
     except Exception as e:
-        logger.warning(f"Redis unavailable: {e}")
+        logger.warning("  ⚠️  Redis unavailable: %s", e)
 
     query_cache = None
     if settings.ENABLE_QUERY_CACHE and redis_available:
@@ -76,7 +95,7 @@ async def lifespan(app: FastAPI):
             enabled=True,
         )
         set_query_cache(query_cache)
-        logger.info(f"✅ QueryCache initialized (TTL: {settings.QUERY_CACHE_TTL}s)")
+        logger.info("  ✅ QueryCache initialized (TTL: %ds)", settings.QUERY_CACHE_TTL)
     else:
         # Create disabled cache for dependency injection
         query_cache = QueryCache(
@@ -86,47 +105,47 @@ async def lifespan(app: FastAPI):
         )
         set_query_cache(query_cache)
         if not redis_available:
-            logger.warning("⚠️ QueryCache DISABLED - Redis unavailable")
+            logger.warning("  ⚠️  QueryCache DISABLED - Redis unavailable")
         else:
-            logger.info("⚠️ QueryCache DISABLED via configuration")
+            logger.info("  ⚠️  QueryCache DISABLED via configuration")
 
     # Initialize VectorDBService with QueryCache
+    logger.info("🔌 Connecting to Qdrant at %s...", settings.QDRANT_URL)
     vector_db_service = VectorDBService(query_cache=query_cache)
     await vector_db_service.initialize()
     set_vector_db_service(vector_db_service)
-    logger.info("✅ VectorDBService initialized")
+    logger.info("  ✅ VectorDBService initialized")
 
     embeddings_service = EmbeddingsService()
     set_embeddings_service(embeddings_service)
-    logger.info("✅ EmbeddingsService initialized")
+    logger.info("  ✅ EmbeddingsService initialized")
 
     llm_service = LLMService()
     set_llm_service(llm_service)
-    logger.info("✅ LLMService initialized")
+    logger.info("  ✅ LLMService initialized")
 
     lang_service = LanguageDetectionService()
     set_language_detection_service(lang_service)
-    logger.info("✅ LanguageDetectionService initialized")
+    logger.info("  ✅ LanguageDetectionService initialized")
 
     # Initialize GraphRAG services
     graph_db_service = GraphDBService()
     await graph_db_service.initialize()
     set_graph_db_service(graph_db_service)
-    logger.info("✅ GraphDBService initialized")
 
     entity_extractor = EntityExtractor()
     set_entity_extractor(entity_extractor)
-    logger.info("✅ EntityExtractor initialized")
+    logger.info("  ✅ EntityExtractor initialized")
 
     relationship_extractor = RelationshipExtractor()
     set_relationship_extractor(relationship_extractor)
-    logger.info("✅ RelationshipExtractor initialized")
+    logger.info("  ✅ RelationshipExtractor initialized")
 
     # Initialize HybridQueryEngine with QueryCache
     hybrid_query_engine = HybridQueryEngine(query_cache=query_cache)
     await hybrid_query_engine.vector_db_service.initialize()
     set_hybrid_query_engine(hybrid_query_engine)
-    logger.info("✅ HybridQueryEngine initialized")
+    logger.info("  ✅ HybridQueryEngine initialized")
 
     # Validate critical service configuration
     if not settings.FIRECRAWL_URL:
@@ -159,6 +178,12 @@ async def lifespan(app: FastAPI):
         logger.info(f"💾 Query cache ENABLED (TTL: {settings.QUERY_CACHE_TTL}s)")
     else:
         logger.info("💾 Query cache DISABLED")
+
+    logger.info("=" * 80)
+    logger.info("✨ GraphRAG API startup complete!")
+    logger.info("🌐 API listening on http://0.0.0.0:4400")
+    logger.info("📖 API docs available at http://localhost:4400/api/v1/docs")
+    logger.info("=" * 80)
 
     yield
 

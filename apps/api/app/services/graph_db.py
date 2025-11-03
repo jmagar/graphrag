@@ -32,15 +32,21 @@ class GraphDBService:
             return
 
         try:
+            logger.info(f"🔌 Connecting to Neo4j at {settings.NEO4J_URI}...")
+            
             self.driver = AsyncGraphDatabase.driver(
                 settings.NEO4J_URI, auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
             )
 
             # Verify connection
+            logger.debug("Verifying Neo4j connectivity...")
             await self.driver.verify_connectivity()
+            logger.info("✅ Neo4j connection verified")
 
             # Create indexes for performance
+            logger.debug("Creating Neo4j indexes...")
             await self._create_indexes()
+            logger.info("✅ Neo4j indexes created")
 
             self._initialized = True
             logger.info(f"✅ Connected to Neo4j at {settings.NEO4J_URI}")
@@ -60,19 +66,22 @@ class GraphDBService:
         """Create indexes on Entity nodes for performance."""
         async with self.driver.session() as session:
             # Index on entity ID (for fast lookups)
+            logger.debug("  - Creating index: entity_id_index")
             await session.run("CREATE INDEX entity_id_index IF NOT EXISTS FOR (e:Entity) ON (e.id)")
 
             # Index on entity text (for text search)
+            logger.debug("  - Creating index: entity_text_index")
             await session.run(
                 "CREATE INDEX entity_text_index IF NOT EXISTS FOR (e:Entity) ON (e.text)"
             )
 
             # Index on entity type (for type filtering)
+            logger.debug("  - Creating index: entity_type_index")
             await session.run(
                 "CREATE INDEX entity_type_index IF NOT EXISTS FOR (e:Entity) ON (e.type)"
             )
 
-        logger.debug("Created Neo4j indexes")
+        logger.debug("  ✓ All indexes verified/created")
 
     async def create_entity(
         self, entity_id: str, entity_type: str, text: str, metadata: Dict[str, Any]

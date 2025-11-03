@@ -4,14 +4,19 @@ import { useEffect, useState } from "react";
 
 interface CollectionInfo {
   name: string;
-  vectors_count: number;
-  points_count: number;
-  segments_count: number;
+  indexed_vectors_count?: number;
+  points_count?: number;
+  segments_count?: number;
   status: string;
 }
 
 // Format number to readable format (K, M) at module scope to prevent recreation on every render
-const formatNumber = (num: number): string => {
+const formatNumber = (num: number | undefined): string => {
+  // Handle undefined or null values
+  if (num === undefined || num === null) {
+    return "0";
+  }
+  
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + "M";
   }
@@ -84,7 +89,7 @@ export function StatisticsSection() {
           <div className="flex items-center justify-between py-1 text-xs">
             <span className="text-zinc-600 dark:text-zinc-400">Vectors</span>
             <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-              {formatNumber(stats.vectors_count)}
+              {formatNumber(stats.indexed_vectors_count)}
             </span>
           </div>
           <div className="flex items-center justify-between py-1 text-xs">
