@@ -48,7 +48,6 @@ export function useSystemStatus() {
     if (newStatus.duration && newStatus.duration > 0) {
       const timer = setTimeout(() => {
         dismissStatus(id);
-        timersRef.current.delete(id);
       }, newStatus.duration);
       timersRef.current.set(id, timer);
     }

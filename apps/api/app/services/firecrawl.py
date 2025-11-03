@@ -131,17 +131,27 @@ class FirecrawlService:
 
     async def cancel_crawl(self, crawl_id: str) -> Dict[str, Any]:
         """
-        Cancel a running crawl.
+        Cancel a running crawl with retry logic.
 
         DELETE /v2/crawl/{id}
+
+        Raises:
+            httpx.HTTPError: On HTTP errors after retries exhausted
+            RuntimeError: If circuit breaker is open
         """
-        client = await self._get_client()
-        response = await client.delete(
-            f"{self.base_url}/v2/crawl/{crawl_id}",
-            timeout=30.0,
+
+        async def _make_request():
+            client = await self._get_client()
+            response = await client.delete(
+                f"{self.base_url}/v2/crawl/{crawl_id}",
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            return cast(Dict[str, Any], response.json())
+
+        return await retry_with_backoff(
+            _make_request, policy=NETWORK_RETRY_POLICY, circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
         )
-        response.raise_for_status()
-        return cast(Dict[str, Any], response.json())
 
     async def scrape_url(self, url: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """

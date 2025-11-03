@@ -272,6 +272,10 @@ async def retry_with_backoff(
             )
             await asyncio.sleep(delay)
 
+        except asyncio.CancelledError:
+            # Let cancellation propagate immediately - this is a control flow signal
+            raise
+
         except Exception as e:
             # Unknown exceptions - log and retry (conservative approach)
             last_exception = e

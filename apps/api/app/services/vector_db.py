@@ -219,7 +219,7 @@ class VectorDBService:
         info = await self.client.get_collection(collection_name=self.collection_name)
         return {
             "name": self.collection_name,
-            "vectors_count": info.indexed_vectors_count,  # Use indexed_vectors_count instead of vectors_count
+            "indexed_vectors_count": info.indexed_vectors_count,  # Breaking change: use indexed_vectors_count instead of vectors_count
             "points_count": info.points_count,
             "segments_count": info.segments_count,
             "status": info.status.value if hasattr(info.status, "value") else str(info.status),
