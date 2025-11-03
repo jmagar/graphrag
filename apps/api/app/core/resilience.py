@@ -7,18 +7,45 @@ Implements:
 - Configurable retry policies per service
 """
 
+# Standard library imports
 import asyncio
 import logging
+import random
 import time
+from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Optional, TypeVar
-from dataclasses import dataclass
-import random
+
+# Third-party imports
+import httpx
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# Exception types that should be retried (network/transient errors)
+RETRYABLE_EXCEPTIONS = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.ReadTimeout,
+    httpx.WriteTimeout,
+    httpx.PoolTimeout,
+    httpx.NetworkError,
+    httpx.TimeoutException,
+    ConnectionError,
+    TimeoutError,
+    OSError,
+)
+
+# Exception types that should NOT be retried (client errors, programming errors)
+NON_RETRYABLE_EXCEPTIONS = (
+    ValueError,
+    TypeError,
+    KeyError,
+    AttributeError,
+    httpx.HTTPStatusError,  # HTTP 4xx/5xx should be handled by caller
+)
 
 
 class CircuitState(str, Enum):
@@ -44,7 +71,10 @@ class RetryPolicy:
         delay = min(self.base_delay * (self.exponential_base**attempt), self.max_delay)
 
         if self.jitter:
-            # Add jitter: random value between 0 and 25% of delay
+            # Add jitter: random value between 0 and 25% of delay.
+            # 25% is a common industry standard to prevent the thundering herd problem,
+            # balancing randomness with predictability. See:
+            # https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
             delay += random.uniform(0, delay * 0.25)
 
         return delay
@@ -212,7 +242,13 @@ async def retry_with_backoff(
             else:
                 return await func(*args, **kwargs)
 
-        except Exception as e:
+        except NON_RETRYABLE_EXCEPTIONS:
+            # Don't retry on non-retryable exceptions (client errors, programming errors)
+            logger.error("❌ Non-retryable exception, failing immediately")
+            raise
+
+        except RETRYABLE_EXCEPTIONS as e:
+            # Retry on network/transient errors
             last_exception = e
 
             # Don't retry if circuit breaker is open
@@ -231,6 +267,18 @@ async def retry_with_backoff(
                 f"⚠️ Attempt {attempt + 1}/{policy.max_attempts} failed: {e}. "
                 f"Retrying in {delay:.2f}s..."
             )
+            await asyncio.sleep(delay)
+
+        except Exception as e:
+            # Unknown exceptions - log and retry (conservative approach)
+            last_exception = e
+            logger.warning(f"⚠️ Unknown exception type {type(e).__name__}, retrying: {e}")
+
+            if attempt == policy.max_attempts - 1:
+                logger.error(f"❌ All {policy.max_attempts} retry attempts exhausted: {e}")
+                raise
+
+            delay = policy.get_delay(attempt)
             await asyncio.sleep(delay)
 
     # Should never reach here, but satisfy type checker

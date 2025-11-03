@@ -3,8 +3,7 @@ Tests for resilience patterns: retry logic and circuit breaker.
 """
 
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 from app.core.resilience import (
     RetryPolicy,
     CircuitBreaker,
@@ -225,8 +224,8 @@ class TestRetryWithBackoff:
     async def test_retries_on_failure(self):
         """Test function retries on failure."""
         mock_func = AsyncMock(side_effect=[
-            ValueError("fail 1"),
-            ValueError("fail 2"),
+            ConnectionError("fail 1"),
+            ConnectionError("fail 2"),
             "success"
         ])
         policy = RetryPolicy(max_attempts=3, base_delay=0.01, jitter=False)
@@ -239,10 +238,10 @@ class TestRetryWithBackoff:
     @pytest.mark.anyio
     async def test_exhausts_retries_and_raises(self):
         """Test raises last exception when all retries exhausted."""
-        mock_func = AsyncMock(side_effect=ValueError("persistent error"))
+        mock_func = AsyncMock(side_effect=ConnectionError("persistent error"))
         policy = RetryPolicy(max_attempts=3, base_delay=0.01)
 
-        with pytest.raises(ValueError, match="persistent error"):
+        with pytest.raises(ConnectionError, match="persistent error"):
             await retry_with_backoff(mock_func, policy=policy)
 
         assert mock_func.call_count == 3
@@ -253,10 +252,10 @@ class TestRetryWithBackoff:
         config = CircuitBreakerConfig(failure_threshold=2)
         breaker = CircuitBreaker("test", config)
 
-        mock_func = AsyncMock(side_effect=ValueError("error"))
+        mock_func = AsyncMock(side_effect=ConnectionError("error"))
         policy = RetryPolicy(max_attempts=5, base_delay=0.01)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ConnectionError):
             await retry_with_backoff(mock_func, policy=policy, circuit_breaker=breaker)
 
         # Circuit should be open after 2 failures
@@ -291,7 +290,7 @@ class TestWithRetryDecorator:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise ValueError("not yet")
+                raise ConnectionError("not yet")
             return "success"
 
         result = await flaky_function()
@@ -306,9 +305,9 @@ class TestWithRetryDecorator:
 
         @with_retry(policy=RetryPolicy(max_attempts=5, base_delay=0.01), circuit_breaker=breaker)
         async def always_fails():
-            raise ValueError("error")
+            raise ConnectionError("error")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ConnectionError):
             await always_fails()
 
         # Circuit should be open

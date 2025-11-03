@@ -8,19 +8,20 @@ Run with:
     pytest tests/integration/test_real_services.py -v
 """
 
+import os
 import pytest
-import asyncio
 from qdrant_client import AsyncQdrantClient, models
+from qdrant_client.http import exceptions as qdrant_exceptions
 from redis import asyncio as aioredis
 from neo4j import AsyncGraphDatabase
 
-# Test configuration
-QDRANT_URL = "http://localhost:4203"
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
-NEO4J_URI = "bolt://localhost:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "testpassword123"
+# Test configuration from environment variables with defaults
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:4203")
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "testpassword123")
 
 
 @pytest.mark.integration
@@ -49,10 +50,11 @@ class TestQdrantIntegration:
         """Test creating a collection in Qdrant."""
         collection_name = "test_collection"
 
-        # Clean up if exists
+        # Clean up if exists (ignore if collection doesn't exist)
         try:
             await qdrant_client.delete_collection(collection_name)
-        except:
+        except qdrant_exceptions.UnexpectedResponse:
+            # Collection doesn't exist, that's fine
             pass
 
         # Create collection
@@ -73,10 +75,11 @@ class TestQdrantIntegration:
         """Test upserting and searching vectors."""
         collection_name = "test_search"
 
-        # Clean up if exists
+        # Clean up if exists (ignore if collection doesn't exist)
         try:
             await qdrant_client.delete_collection(collection_name)
-        except:
+        except qdrant_exceptions.UnexpectedResponse:
+            # Collection doesn't exist, that's fine
             pass
 
         # Create collection

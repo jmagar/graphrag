@@ -50,7 +50,13 @@ export function ToolCall({ command, args, status = 'running', output, errorText 
   };
 
   // Generate stable tool ID using useState with lazy initializer (only called once)
-  const [toolId] = useState(() => `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  // Using crypto.randomUUID if available, otherwise fallback to timestamp + random
+  const [toolId] = useState(() => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `tool-${crypto.randomUUID()}`;
+    }
+    return `tool-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  });
 
   // Create ToolPart structure for prompt-kit Tool component
   const toolPart: ToolPart = useMemo(() => {

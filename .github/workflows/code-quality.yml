@@ -61,8 +61,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Run pytest with coverage
-        run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml
+      - name: Run pytest with coverage (skip integration tests)
+        run: uv run pytest -m "not integration" --cov=app --cov-report=term-missing --cov-report=xml
         continue-on-error: false
 
       - name: Upload coverage reports
