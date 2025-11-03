@@ -104,8 +104,7 @@ class EntitySearchResponse(BaseModel):
 
 @router.post("/search", response_model=GraphSearchResponse)
 async def graph_search(
-    request: GraphSearchRequest,
-    hybrid_engine: HybridQueryEngine = Depends(get_hybrid_query_engine)
+    request: GraphSearchRequest, hybrid_engine: HybridQueryEngine = Depends(get_hybrid_query_engine)
 ):
     """
     Perform hybrid search combining vector and graph retrieval.
@@ -139,10 +138,7 @@ async def graph_search(
     """
     # Validate query
     if not request.query or not request.query.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Query cannot be empty"
-        )
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     try:
         # Measure execution time
@@ -153,7 +149,7 @@ async def graph_search(
             query=request.query,
             vector_limit=request.vector_limit,
             graph_depth=request.graph_depth,
-            rerank=request.rerank
+            rerank=request.rerank,
         )
 
         execution_time_ms = (time.time() - start_time) * 1000
@@ -172,15 +168,12 @@ async def graph_search(
             results=combined_results,
             total=len(combined_results),
             execution_time_ms=execution_time_ms,
-            retrieval_strategy=retrieval_strategy
+            retrieval_strategy=retrieval_strategy,
         )
 
     except Exception as e:
         logger.error(f"Graph search error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Search failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 @router.get("/entities/{entity_id}/connections", response_model=EntityConnectionsResponse)
@@ -189,9 +182,9 @@ async def get_entity_connections(
     max_depth: int = Query(default=1, ge=1, le=4, description="Graph traversal depth"),
     relationship_types: Optional[str] = Query(
         default=None,
-        description="Comma-separated list of relationship types to filter (e.g., 'WORKS_AT,LOCATED_IN')"
+        description="Comma-separated list of relationship types to filter (e.g., 'WORKS_AT,LOCATED_IN')",
     ),
-    graph_db: GraphDBService = Depends(get_graph_db_service)
+    graph_db: GraphDBService = Depends(get_graph_db_service),
 ):
     """
     Get entities connected to a specific entity via graph traversal.
@@ -216,10 +209,7 @@ async def get_entity_connections(
         # Check if entity exists
         entity = await graph_db.get_entity_by_id(entity_id)
         if entity is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Entity '{entity_id}' not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Entity '{entity_id}' not found")
 
         # Parse relationship types filter
         rel_types_list: Optional[List[str]] = None
@@ -228,9 +218,7 @@ async def get_entity_connections(
 
         # Find connected entities
         connections = await graph_db.find_connected_entities(
-            entity_id=entity_id,
-            max_depth=max_depth,
-            relationship_types=rel_types_list
+            entity_id=entity_id, max_depth=max_depth, relationship_types=rel_types_list
         )
 
         logger.info(
@@ -239,20 +227,14 @@ async def get_entity_connections(
         )
 
         return EntityConnectionsResponse(
-            entity_id=entity_id,
-            connections=connections,
-            depth=max_depth,
-            total=len(connections)
+            entity_id=entity_id, connections=connections, depth=max_depth, total=len(connections)
         )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting connections for entity '{entity_id}': {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get connections: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get connections: {str(e)}")
 
 
 @router.get("/entities/search", response_model=EntitySearchResponse)
@@ -260,10 +242,10 @@ async def search_entities(
     query: str = Query(..., min_length=1, description="Search query"),
     entity_types: Optional[str] = Query(
         default=None,
-        description="Comma-separated list of entity types to filter (e.g., 'PERSON,ORG')"
+        description="Comma-separated list of entity types to filter (e.g., 'PERSON,ORG')",
     ),
     limit: int = Query(default=10, ge=1, le=100, description="Maximum number of results"),
-    graph_db: GraphDBService = Depends(get_graph_db_service)
+    graph_db: GraphDBService = Depends(get_graph_db_service),
 ):
     """
     Search for entities by text.
@@ -290,26 +272,15 @@ async def search_entities(
             types_list = [et.strip() for et in entity_types.split(",")]
 
         # Search entities
-        entities = await graph_db.search_entities(
-            query=query,
-            entity_types=types_list,
-            limit=limit
-        )
+        entities = await graph_db.search_entities(query=query, entity_types=types_list, limit=limit)
 
         logger.info(
             f"Entity search: query='{query}', types={types_list}, "
             f"limit={limit}, found={len(entities)}"
         )
 
-        return EntitySearchResponse(
-            entities=entities,
-            total=len(entities),
-            query=query
-        )
+        return EntitySearchResponse(entities=entities, total=len(entities), query=query)
 
     except Exception as e:
         logger.error(f"Entity search error for query '{query}': {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Search failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")

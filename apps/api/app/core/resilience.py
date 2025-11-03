@@ -12,8 +12,8 @@ import logging
 import time
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar, cast
-from dataclasses import dataclass, field
+from typing import Any, Callable, Optional, TypeVar
+from dataclasses import dataclass
 import random
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,7 @@ class RetryPolicy:
 
     def get_delay(self, attempt: int) -> float:
         """Calculate delay for given attempt number (0-indexed)."""
-        delay = min(
-            self.base_delay * (self.exponential_base ** attempt),
-            self.max_delay
-        )
+        delay = min(self.base_delay * (self.exponential_base**attempt), self.max_delay)
 
         if self.jitter:
             # Add jitter: random value between 0 and 25% of delay
@@ -225,9 +222,7 @@ async def retry_with_backoff(
 
             # Don't retry on last attempt
             if attempt == policy.max_attempts - 1:
-                logger.error(
-                    f"❌ All {policy.max_attempts} retry attempts exhausted: {e}"
-                )
+                logger.error(f"❌ All {policy.max_attempts} retry attempts exhausted: {e}")
                 raise
 
             # Calculate delay and retry
@@ -257,43 +252,30 @@ def with_retry(
             response = await client.get(url)
             return response.json()
     """
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             return await retry_with_backoff(
-                func,
-                *args,
-                policy=policy,
-                circuit_breaker=circuit_breaker,
-                **kwargs
+                func, *args, policy=policy, circuit_breaker=circuit_breaker, **kwargs
             )
+
         return wrapper
+
     return decorator
 
 
 # Pre-configured policies for common scenarios
 NETWORK_RETRY_POLICY = RetryPolicy(
-    max_attempts=3,
-    base_delay=1.0,
-    max_delay=10.0,
-    exponential_base=2.0,
-    jitter=True
+    max_attempts=3, base_delay=1.0, max_delay=10.0, exponential_base=2.0, jitter=True
 )
 
 AGGRESSIVE_RETRY_POLICY = RetryPolicy(
-    max_attempts=5,
-    base_delay=0.5,
-    max_delay=5.0,
-    exponential_base=1.5,
-    jitter=True
+    max_attempts=5, base_delay=0.5, max_delay=5.0, exponential_base=1.5, jitter=True
 )
 
 CONSERVATIVE_RETRY_POLICY = RetryPolicy(
-    max_attempts=2,
-    base_delay=2.0,
-    max_delay=30.0,
-    exponential_base=2.5,
-    jitter=True
+    max_attempts=2, base_delay=2.0, max_delay=30.0, exponential_base=2.5, jitter=True
 )
 
 
@@ -301,10 +283,7 @@ CONSERVATIVE_RETRY_POLICY = RetryPolicy(
 _circuit_breakers: dict[str, CircuitBreaker] = {}
 
 
-def get_circuit_breaker(
-    name: str,
-    config: Optional[CircuitBreakerConfig] = None
-) -> CircuitBreaker:
+def get_circuit_breaker(name: str, config: Optional[CircuitBreakerConfig] = None) -> CircuitBreaker:
     """
     Get or create a circuit breaker by name.
 

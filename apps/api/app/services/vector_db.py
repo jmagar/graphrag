@@ -25,7 +25,7 @@ class VectorDBService:
     def __init__(self):
         """
         Initialize the service without blocking operations.
-        
+
         IMPORTANT: Call initialize() after instantiation to ensure
         collection exists before using the service.
         """
@@ -35,14 +35,14 @@ class VectorDBService:
     async def initialize(self) -> None:
         """
         Initialize the async client and ensure collection exists.
-        
+
         MUST be called after instantiation via lifespan manager.
         Safe to call multiple times (idempotent).
         """
         if self.client is None:
             self.client = AsyncQdrantClient(url=settings.QDRANT_URL)
             logger.info(f"AsyncQdrantClient created for {settings.QDRANT_URL}")
-        
+
         await self._ensure_collection()
         logger.info(f"✅ VectorDBService initialized with collection: {self.collection_name}")
 
@@ -50,7 +50,7 @@ class VectorDBService:
         """Ensure the collection exists, create if not (async version)."""
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
-        
+
         collections = await self.client.get_collections()
         collection_names = [c.name for c in collections.collections]
 
@@ -88,7 +88,7 @@ class VectorDBService:
         """
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
-        
+
         point = PointStruct(
             id=doc_id,
             vector=embedding,
@@ -104,16 +104,13 @@ class VectorDBService:
             wait=True,
         )
 
-    async def upsert_documents(
-        self,
-        documents: List[Dict[str, Any]]
-    ) -> None:
+    async def upsert_documents(self, documents: List[Dict[str, Any]]) -> None:
         """
         Insert or update multiple documents in a single batch operation.
-        
+
         Optimized for Qdrant batch upserts - much faster than individual upserts.
         For 10 documents: ~50ms vs ~200ms for individual upserts.
-        
+
         Args:
             documents: List of dicts with keys:
                 - doc_id: str (unique identifier)
@@ -123,10 +120,10 @@ class VectorDBService:
         """
         if not documents:
             return
-        
+
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
-        
+
         points = [
             PointStruct(
                 id=doc["doc_id"],
@@ -138,7 +135,7 @@ class VectorDBService:
             )
             for doc in documents
         ]
-        
+
         # Single batch upsert to Qdrant
         await self.client.upsert(
             collection_name=self.collection_name,
@@ -167,7 +164,7 @@ class VectorDBService:
         """
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
-        
+
         query_filter = None
         if filters:
             conditions: List[Condition] = []
@@ -200,7 +197,7 @@ class VectorDBService:
         """Delete a document from the vector database."""
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
-        
+
         await self.client.delete(
             collection_name=self.collection_name,
             points_selector=[doc_id],
@@ -211,7 +208,7 @@ class VectorDBService:
         """Get information about the collection."""
         if self.client is None:
             raise RuntimeError("VectorDBService not initialized. Call initialize() first.")
-        
+
         info = await self.client.get_collection(collection_name=self.collection_name)
         return {
             "name": self.collection_name,

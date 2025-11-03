@@ -21,6 +21,11 @@ export interface SystemStatus {
 export function useSystemStatus() {
   const [statuses, setStatuses] = useState<SystemStatus[]>([]);
 
+  // Dismiss a specific status (declared first to avoid hoisting issues)
+  const dismissStatus = useCallback((id: string) => {
+    setStatuses((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
   // Add a new system message
   const addStatus = useCallback((status: Omit<SystemStatus, 'id'>) => {
     const id = `status-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -41,12 +46,7 @@ export function useSystemStatus() {
 
       return () => clearTimeout(timer);
     }
-  }, []);
-
-  // Dismiss a specific status
-  const dismissStatus = useCallback((id: string) => {
-    setStatuses((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+  }, [dismissStatus]);
 
   // Clear all statuses
   const clearStatuses = useCallback(() => {

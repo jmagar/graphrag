@@ -27,11 +27,7 @@ class HybridQueryEngine:
         logger.info("Initialized HybridQueryEngine")
 
     async def hybrid_search(
-        self,
-        query: str,
-        vector_limit: int = 5,
-        graph_depth: int = 2,
-        rerank: bool = True
+        self, query: str, vector_limit: int = 5, graph_depth: int = 2, rerank: bool = True
     ) -> Dict[str, Any]:
         """
         Perform hybrid search combining vector and graph retrieval.
@@ -67,7 +63,7 @@ class HybridQueryEngine:
                 "vector_results": [],
                 "graph_results": [],
                 "combined_results": [],
-                "retrieval_strategy": "none"
+                "retrieval_strategy": "none",
             }
 
         # Step 1: Extract entities from query
@@ -77,8 +73,7 @@ class HybridQueryEngine:
         # Step 2: Vector search (always performed)
         query_embedding = await self.embeddings_service.generate_embedding(query)
         vector_results = await self.vector_db_service.search(
-            query_embedding=query_embedding,
-            limit=vector_limit
+            query_embedding=query_embedding, limit=vector_limit
         )
         logger.debug(f"Vector search found {len(vector_results)} results")
 
@@ -86,15 +81,13 @@ class HybridQueryEngine:
         graph_results = []
         if query_entities:
             graph_results = await self._graph_search(
-                query_entities=query_entities,
-                max_depth=graph_depth
+                query_entities=query_entities, max_depth=graph_depth
             )
             logger.debug(f"Graph search found {len(graph_results)} results")
 
         # Step 4: Combine results
         combined_results = self._combine_results(
-            vector_results=vector_results,
-            graph_results=graph_results
+            vector_results=vector_results, graph_results=graph_results
         )
         logger.debug(f"Combined into {len(combined_results)} unique results")
 
@@ -116,13 +109,11 @@ class HybridQueryEngine:
             "vector_results": vector_results,
             "graph_results": graph_results,
             "combined_results": combined_results,
-            "retrieval_strategy": strategy
+            "retrieval_strategy": strategy,
         }
 
     async def _graph_search(
-        self,
-        query_entities: List[Dict[str, Any]],
-        max_depth: int
+        self, query_entities: List[Dict[str, Any]], max_depth: int
     ) -> List[Dict[str, Any]]:
         """
         Search graph database for connected entities.
@@ -140,10 +131,7 @@ class HybridQueryEngine:
             entity_text = entity["text"]
 
             # Find entity in graph
-            entity_nodes = await self.graph_db_service.search_entities(
-                query=entity_text,
-                limit=1
-            )
+            entity_nodes = await self.graph_db_service.search_entities(query=entity_text, limit=1)
 
             if not entity_nodes:
                 continue
@@ -151,8 +139,7 @@ class HybridQueryEngine:
             # Get connected entities via graph traversal
             entity_id = entity_nodes[0]["id"]
             connected = await self.graph_db_service.find_connected_entities(
-                entity_id=entity_id,
-                max_depth=max_depth
+                entity_id=entity_id, max_depth=max_depth
             )
 
             all_connected.extend(connected)
@@ -160,9 +147,7 @@ class HybridQueryEngine:
         return all_connected
 
     def _combine_results(
-        self,
-        vector_results: List[Dict[str, Any]],
-        graph_results: List[Dict[str, Any]]
+        self, vector_results: List[Dict[str, Any]], graph_results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Combine and deduplicate results from vector and graph search.
@@ -186,7 +171,7 @@ class HybridQueryEngine:
                 **result,
                 "vector_score": result.get("score"),
                 "graph_distance": None,
-                "source": "vector"
+                "source": "vector",
             }
 
         # Add graph results
@@ -218,15 +203,13 @@ class HybridQueryEngine:
                     **entity_data,
                     "vector_score": None,
                     "graph_distance": distance,
-                    "source": "graph"
+                    "source": "graph",
                 }
 
         return list(results_map.values())
 
     async def _rerank_results(
-        self,
-        query: str,
-        results: List[Dict[str, Any]]
+        self, query: str, results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Rerank combined results using a hybrid scoring function.

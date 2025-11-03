@@ -19,16 +19,16 @@ from app.services.graph_db import GraphDBService
 from app.services.entity_extractor import EntityExtractor
 from app.services.relationship_extractor import RelationshipExtractor
 from app.dependencies import (
-    set_firecrawl_service, clear_firecrawl_service,
-    set_vector_db_service, clear_vector_db_service,
-    set_embeddings_service, clear_embeddings_service,
-    set_llm_service, clear_llm_service,
-    set_redis_service, clear_redis_service,
-    set_language_detection_service, clear_language_detection_service,
-    set_graph_db_service, clear_graph_db_service,
-    set_entity_extractor, clear_entity_extractor,
-    set_relationship_extractor, clear_relationship_extractor,
-    clear_all_services
+    set_firecrawl_service,
+    set_vector_db_service,
+    set_embeddings_service,
+    set_llm_service,
+    set_redis_service,
+    set_language_detection_service,
+    set_graph_db_service,
+    set_entity_extractor,
+    set_relationship_extractor,
+    clear_all_services,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,46 +41,46 @@ async def lifespan(app: FastAPI):
     """
     # Startup: Initialize services
     logger.info("🚀 Starting GraphRAG API...")
-    
+
     # Initialize database
     await init_db()
-    
+
     # Initialize all service singletons
     firecrawl_service = FirecrawlService()
     set_firecrawl_service(firecrawl_service)
     logger.info("✅ FirecrawlService initialized")
-    
+
     vector_db_service = VectorDBService()
     await vector_db_service.initialize()
     set_vector_db_service(vector_db_service)
     logger.info("✅ VectorDBService initialized")
-    
+
     embeddings_service = EmbeddingsService()
     set_embeddings_service(embeddings_service)
     logger.info("✅ EmbeddingsService initialized")
-    
+
     llm_service = LLMService()
     set_llm_service(llm_service)
     logger.info("✅ LLMService initialized")
-    
+
     redis_service = RedisService()
     set_redis_service(redis_service)
     logger.info("✅ RedisService initialized")
-    
+
     lang_service = LanguageDetectionService()
     set_language_detection_service(lang_service)
     logger.info("✅ LanguageDetectionService initialized")
-    
+
     # Initialize GraphRAG services
     graph_db_service = GraphDBService()
     await graph_db_service.initialize()
     set_graph_db_service(graph_db_service)
     logger.info("✅ GraphDBService initialized")
-    
+
     entity_extractor = EntityExtractor()
     set_entity_extractor(entity_extractor)
     logger.info("✅ EntityExtractor initialized")
-    
+
     relationship_extractor = RelationshipExtractor()
     set_relationship_extractor(relationship_extractor)
     logger.info("✅ RelationshipExtractor initialized")
@@ -94,7 +94,7 @@ async def lifespan(app: FastAPI):
         logger.warning("QDRANT_URL not configured - RAG features will fail")
     if not settings.TEI_URL:
         logger.warning("TEI_URL not configured - embeddings generation will fail")
-    
+
     # Log language filtering configuration
     if settings.ENABLE_LANGUAGE_FILTERING:
         logger.info(
@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info("🌍 Language filtering DISABLED - processing all languages")
-    
+
     # Log streaming configuration
     if settings.ENABLE_STREAMING_PROCESSING:
         logger.info("⚡ Streaming processing ENABLED - pages processed immediately")
@@ -112,41 +112,41 @@ async def lifespan(app: FastAPI):
         logger.info("📦 Batch processing ENABLED - pages processed at crawl completion")
 
     yield
-    
+
     # Shutdown: Clean up resources
     logger.info("🛑 Shutting down GraphRAG API...")
-    
+
     # Close all services
     try:
         await firecrawl_service.close()
         logger.info("✅ FirecrawlService closed")
     except Exception as e:
         logger.error(f"❌ Error closing FirecrawlService: {e}")
-    
+
     try:
         await vector_db_service.close()
         logger.info("✅ VectorDBService closed")
     except Exception as e:
         logger.error(f"❌ Error closing VectorDBService: {e}")
-    
+
     try:
         await redis_service.close()
         logger.info("✅ RedisService closed")
     except Exception as e:
         logger.error(f"❌ Error closing RedisService: {e}")
-    
+
     try:
         await graph_db_service.close()
         logger.info("✅ GraphDBService closed")
     except Exception as e:
         logger.error(f"❌ Error closing GraphDBService: {e}")
-    
+
     # Clear all service singletons
     clear_all_services()
-    
+
     # Close database connections
     await close_db()
-    
+
     logger.info("👋 GraphRAG API shutdown complete")
 
 

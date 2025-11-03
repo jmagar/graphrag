@@ -162,7 +162,7 @@ class RedisService:
             # Use hash of query as key
             query_hash = hashlib.md5(query.encode()).hexdigest()
             key = f"embed:query:{query_hash}"
-            
+
             # Store as JSON
             value = json.dumps({"query": query, "embedding": embedding})
             await self.client.set(key, value, ex=ttl)
@@ -191,13 +191,13 @@ class RedisService:
 
             query_hash = hashlib.md5(query.encode()).hexdigest()
             key = f"embed:query:{query_hash}"
-            
+
             value = await self.client.get(key)
             if value:
                 data = json.loads(value)
                 logger.debug(f"Cache hit for query: {query[:50]}...")
                 return data.get("embedding")
-            
+
             logger.debug(f"Cache miss for query: {query[:50]}...")
             return None
         except Exception as e:

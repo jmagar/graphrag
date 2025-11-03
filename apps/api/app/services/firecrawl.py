@@ -19,11 +19,7 @@ logger = logging.getLogger(__name__)
 # Circuit breaker for Firecrawl API calls
 FIRECRAWL_CIRCUIT_BREAKER = get_circuit_breaker(
     "firecrawl",
-    CircuitBreakerConfig(
-        failure_threshold=5,
-        recovery_timeout=60.0,
-        half_open_max_attempts=1
-    )
+    CircuitBreakerConfig(failure_threshold=5, recovery_timeout=60.0, half_open_max_attempts=1),
 )
 
 
@@ -56,7 +52,7 @@ class FirecrawlService:
     async def close(self) -> None:
         """
         Close the HTTP client and release connections.
-        
+
         Safe to call multiple times. Errors are logged but not raised.
         """
         if self._client and not self._client.is_closed:
@@ -69,16 +65,16 @@ class FirecrawlService:
                 self._client = None
         else:
             logger.debug("HTTP client already closed or not initialized")
-    
+
     @property
     def is_closed(self) -> bool:
         """Check if the HTTP client is closed."""
         return self._client is None or self._client.is_closed
-    
+
     async def __aenter__(self):
         """Async context manager entry."""
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit with automatic cleanup."""
         await self.close()
@@ -94,6 +90,7 @@ class FirecrawlService:
             httpx.HTTPError: On HTTP errors after retries exhausted
             RuntimeError: If circuit breaker is open
         """
+
         async def _make_request():
             client = await self._get_client()
             response = await client.post(
@@ -105,9 +102,7 @@ class FirecrawlService:
             return cast(Dict[str, Any], response.json())
 
         return await retry_with_backoff(
-            _make_request,
-            policy=NETWORK_RETRY_POLICY,
-            circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
+            _make_request, policy=NETWORK_RETRY_POLICY, circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
         )
 
     async def get_crawl_status(self, crawl_id: str) -> Dict[str, Any]:
@@ -120,6 +115,7 @@ class FirecrawlService:
             httpx.HTTPError: On HTTP errors after retries exhausted
             RuntimeError: If circuit breaker is open
         """
+
         async def _make_request():
             client = await self._get_client()
             response = await client.get(
@@ -130,9 +126,7 @@ class FirecrawlService:
             return cast(Dict[str, Any], response.json())
 
         return await retry_with_backoff(
-            _make_request,
-            policy=NETWORK_RETRY_POLICY,
-            circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
+            _make_request, policy=NETWORK_RETRY_POLICY, circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
         )
 
     async def cancel_crawl(self, crawl_id: str) -> Dict[str, Any]:
@@ -159,6 +153,7 @@ class FirecrawlService:
             httpx.HTTPError: On HTTP errors after retries exhausted
             RuntimeError: If circuit breaker is open
         """
+
         async def _make_request():
             payload = {"url": url}
             if options:
@@ -174,9 +169,7 @@ class FirecrawlService:
             return cast(Dict[str, Any], response.json())
 
         return await retry_with_backoff(
-            _make_request,
-            policy=NETWORK_RETRY_POLICY,
-            circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
+            _make_request, policy=NETWORK_RETRY_POLICY, circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
         )
 
     async def map_url(self, url: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -185,6 +178,7 @@ class FirecrawlService:
 
         POST /v2/map
         """
+
         async def _make_request():
             payload = {"url": url}
             if options:
@@ -200,9 +194,7 @@ class FirecrawlService:
             return cast(Dict[str, Any], response.json())
 
         return await retry_with_backoff(
-            _make_request,
-            policy=NETWORK_RETRY_POLICY,
-            circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
+            _make_request, policy=NETWORK_RETRY_POLICY, circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
         )
 
     async def search_web(self, query: str, options: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -211,6 +203,7 @@ class FirecrawlService:
 
         POST /v2/search
         """
+
         async def _make_request():
             payload = {"query": query}
             if options:
@@ -226,9 +219,7 @@ class FirecrawlService:
             return cast(Dict[str, Any], response.json())
 
         return await retry_with_backoff(
-            _make_request,
-            policy=NETWORK_RETRY_POLICY,
-            circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
+            _make_request, policy=NETWORK_RETRY_POLICY, circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
         )
 
     async def extract_data(
@@ -244,6 +235,7 @@ class FirecrawlService:
             schema: JSON schema describing desired structured output
             options: Additional options including scrapeOptions
         """
+
         async def _make_request():
             payload = {"urls": urls, "schema": schema}
             if options:
@@ -259,7 +251,5 @@ class FirecrawlService:
             return cast(Dict[str, Any], response.json())
 
         return await retry_with_backoff(
-            _make_request,
-            policy=NETWORK_RETRY_POLICY,
-            circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
+            _make_request, policy=NETWORK_RETRY_POLICY, circuit_breaker=FIRECRAWL_CIRCUIT_BREAKER
         )

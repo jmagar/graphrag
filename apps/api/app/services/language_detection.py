@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class LanguageDetectionService:
     """
     Service for detecting language of text content with caching.
-    
+
     Caches detection results based on content hash to avoid redundant
     processing of identical or similar content.
     """
@@ -30,7 +30,7 @@ class LanguageDetectionService:
         self.min_text_length = min_text_length
         self._cache_hits = 0
         self._cache_misses = 0
-        
+
         # Create instance-level cached function
         @lru_cache(maxsize=settings.LANGUAGE_DETECTION_CACHE_SIZE)
         def _cached_detect(cache_key: str, text_sample: str) -> str:
@@ -42,21 +42,21 @@ class LanguageDetectionService:
             except LangDetectException as e:
                 logger.warning(f"Language detection failed: {e}")
                 return "unknown"
-        
+
         self._detect_language_impl = _cached_detect
 
     def _generate_cache_key(self, text: str) -> str:
         """
         Generate cache key from text content.
-        
+
         Args:
             text: Text to hash
-            
+
         Returns:
             MD5 hex digest of text sample
         """
-        sample = text[:settings.LANGUAGE_DETECTION_SAMPLE_SIZE]
-        return hashlib.md5(sample.encode('utf-8', errors='ignore')).hexdigest()
+        sample = text[: settings.LANGUAGE_DETECTION_SAMPLE_SIZE]
+        return hashlib.md5(sample.encode("utf-8", errors="ignore")).hexdigest()
 
     def detect_language(self, text: str) -> str:
         """
@@ -73,15 +73,15 @@ class LanguageDetectionService:
             return "unknown"
 
         # Generate cache key
-        sample = text[:settings.LANGUAGE_DETECTION_SAMPLE_SIZE]
+        sample = text[: settings.LANGUAGE_DETECTION_SAMPLE_SIZE]
         cache_key = self._generate_cache_key(text)
-        
+
         # Check cache info before call
         cache_info_before = self._detect_language_impl.cache_info()
-        
+
         # Call cached implementation
         result = self._detect_language_impl(cache_key, sample)
-        
+
         # Track statistics
         cache_info_after = self._detect_language_impl.cache_info()
         if cache_info_after.hits > cache_info_before.hits:
@@ -89,28 +89,28 @@ class LanguageDetectionService:
             logger.debug(f"Cache hit for language detection: {result}")
         else:
             self._cache_misses += 1
-        
+
         return result
-    
+
     def get_cache_stats(self) -> Dict[str, int]:
         """
         Get cache statistics.
-        
+
         Returns:
             Dictionary with hits, misses, size, and hit_rate
         """
         cache_info = self._detect_language_impl.cache_info()
         total = self._cache_hits + self._cache_misses
         hit_rate = (self._cache_hits / total * 100) if total > 0 else 0
-        
+
         return {
             "hits": self._cache_hits,
             "misses": self._cache_misses,
             "cache_size": cache_info.currsize,
             "cache_maxsize": cache_info.maxsize,
-            "hit_rate_percent": round(hit_rate, 2)
+            "hit_rate_percent": round(hit_rate, 2),
         }
-    
+
     def clear_cache(self) -> None:
         """Clear the language detection cache."""
         self._detect_language_impl.cache_clear()

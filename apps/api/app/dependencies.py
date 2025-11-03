@@ -28,10 +28,10 @@ _relationship_extractor: Optional[RelationshipExtractor] = None
 def get_firecrawl_service() -> FirecrawlService:
     """
     Get the singleton FirecrawlService instance.
-    
+
     Returns:
         FirecrawlService: Singleton service instance
-        
+
     Raises:
         RuntimeError: If service not initialized (app not started)
     """
@@ -44,9 +44,9 @@ def get_firecrawl_service() -> FirecrawlService:
 def set_firecrawl_service(service: FirecrawlService) -> None:
     """
     Set the singleton FirecrawlService instance.
-    
+
     Called by the application lifespan manager during startup.
-    
+
     Args:
         service: FirecrawlService instance to use
     """
@@ -57,7 +57,7 @@ def set_firecrawl_service(service: FirecrawlService) -> None:
 def clear_firecrawl_service() -> None:
     """
     Clear the singleton FirecrawlService instance.
-    
+
     Called by the application lifespan manager during shutdown.
     """
     global _firecrawl_service
@@ -153,7 +153,9 @@ def get_language_detection_service() -> LanguageDetectionService:
     """Get the singleton LanguageDetectionService instance."""
     global _language_detection_service
     if _language_detection_service is None:
-        raise RuntimeError("LanguageDetectionService not initialized. Application may not be started.")
+        raise RuntimeError(
+            "LanguageDetectionService not initialized. Application may not be started."
+        )
     return _language_detection_service
 
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { Tool, type ToolPart } from '@/components/ui/tool';
 
 interface ToolCallProps {
@@ -73,15 +74,18 @@ export function ToolCall({ command, args, status = 'running', output, errorText 
     }
   };
 
+  // Generate stable tool ID using useState with lazy initializer (only called once)
+  const [toolId] = useState(() => `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+
   // Create ToolPart structure for prompt-kit Tool component
-  const toolPart: ToolPart = {
+  const toolPart: ToolPart = useMemo(() => ({
     type: cleanName,
     state: getToolPartState(),
     input: parseArgs(args),
     output: parseOutput(output),
-    toolCallId: `tool-${Date.now()}`,
+    toolCallId: toolId,
     errorText,
-  };
+  }), [cleanName, status, args, output, errorText, toolId]);
 
   return (
     <Tool 

@@ -9,7 +9,10 @@ import json
 from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
 from typing import Dict
 from pydantic import ValidationError
-from app.services.document_processor import process_and_store_document, process_and_store_documents_batch
+from app.services.document_processor import (
+    process_and_store_document,
+    process_and_store_documents_batch,
+)
 from app.services.redis_service import RedisService
 from app.services.language_detection import LanguageDetectionService
 from app.core.config import settings
@@ -40,13 +43,10 @@ def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> boo
     if not secret or not signature:
         return False
 
-    expected = hmac.new(
-        secret.encode(),
-        payload,
-        hashlib.sha256
-    ).hexdigest()
+    expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
     return hmac.compare_digest(expected, signature)
+
 
 # Services will be injected via Depends()
 
@@ -54,19 +54,18 @@ def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> boo
 def _validate_webhook_security() -> None:
     """
     Validate webhook security configuration.
-    
+
     Raises:
         HTTPException: If webhook secret is not configured in production
     """
     if not settings.FIRECRAWL_WEBHOOK_SECRET:
         if settings.is_production:
             logger.critical("❌ SECURITY: Webhook secret not configured in production")
-            raise HTTPException(
-                status_code=500,
-                detail="Webhook security not properly configured"
-            )
+            raise HTTPException(status_code=500, detail="Webhook security not properly configured")
         else:
-            logger.warning("⚠️ INSECURE: Running webhooks without signature verification in DEBUG mode")
+            logger.warning(
+                "⚠️ INSECURE: Running webhooks without signature verification in DEBUG mode"
+            )
 
 
 async def process_crawled_page(page_data: FirecrawlPageData):
@@ -81,10 +80,7 @@ async def process_crawled_page(page_data: FirecrawlPageData):
     source_url = page_data.metadata.sourceURL
 
     await process_and_store_document(
-        content=content,
-        source_url=source_url,
-        metadata=metadata,
-        source_type="crawl"
+        content=content, source_url=source_url, metadata=metadata, source_type="crawl"
     )
 
 
@@ -93,7 +89,7 @@ async def firecrawl_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
     redis: RedisService = Depends(get_redis_service),
-    lang: LanguageDetectionService = Depends(get_language_detection_service)
+    lang: LanguageDetectionService = Depends(get_language_detection_service),
 ):
     """
     Webhook endpoint for Firecrawl callbacks.
@@ -110,7 +106,7 @@ async def firecrawl_webhook(
     try:
         # Validate security configuration
         _validate_webhook_security()
-        
+
         # Verify webhook signature if secret is configured
         if settings.FIRECRAWL_WEBHOOK_SECRET:
             body = await request.body()
@@ -122,10 +118,10 @@ async def firecrawl_webhook(
                     extra={
                         "ip": request.client.host if request.client else "unknown",
                         "signature": signature[:20] + "..." if len(signature) > 20 else signature,
-                    }
+                    },
                 )
                 raise HTTPException(status_code=401, detail="Invalid webhook signature")
-            
+
             logger.debug("✅ Webhook signature verified")
             # Parse and validate JSON from verified body
             try:
@@ -165,39 +161,42 @@ async def firecrawl_webhook(
         elif event_type == "crawl.page":
             # Process the crawled page in the background
             # payload is now a validated WebhookCrawlPage Pydantic model
-            page_data_model: FirecrawlPageData = payload.data if isinstance(payload, WebhookCrawlPage) else FirecrawlPageData(**payload.get("data", {}))
+            page_data_model: FirecrawlPageData = (
+                payload.data
+                if isinstance(payload, WebhookCrawlPage)
+                else FirecrawlPageData(**payload.get("data", {}))
+            )
             source_url = page_data_model.metadata.sourceURL
             content = page_data_model.markdown
-            
+
             logger.debug(f"📄 Received crawl.page: {source_url}")
-            
+
             # Language filtering (if enabled) - BEFORE processing
             if settings.ENABLE_LANGUAGE_FILTERING and content:
                 detected_lang = lang.detect_language(content)
-                
+
                 # Check if language is allowed
-                is_allowed = (
-                    detected_lang in settings.allowed_languages_list or
-                    (settings.LANGUAGE_FILTER_MODE == "lenient" and detected_lang == "unknown")
+                is_allowed = detected_lang in settings.allowed_languages_list or (
+                    settings.LANGUAGE_FILTER_MODE == "lenient" and detected_lang == "unknown"
                 )
-                
+
                 if not is_allowed:
                     # Skip non-English page
                     logger.info(f"🚫 FILTERED ({detected_lang}): {source_url}")
-                    
+
                     # Mark as processed so we skip it in crawl.completed too
                     if crawl_id and source_url:
                         await redis.mark_page_processed(crawl_id, source_url)
-                    
+
                     return {"status": "filtered", "language": detected_lang}
                 else:
                     logger.info(f"✅ ALLOWED ({detected_lang}): {source_url}")
-            
+
             # Track this page as processed (for deduplication in crawl.completed)
             if crawl_id and source_url:
                 await redis.mark_page_processed(crawl_id, source_url)
                 logger.debug(f"Marked page as processed: {source_url}")
-            
+
             # Process immediately if streaming is enabled
             if settings.ENABLE_STREAMING_PROCESSING:
                 logger.info(f"⚡ PROCESSING (streaming): {source_url}")
@@ -209,7 +208,9 @@ async def firecrawl_webhook(
 
         elif event_type == "crawl.completed":
             # payload is now a validated WebhookCrawlCompleted Pydantic model
-            data: list[FirecrawlPageData] = payload.data if isinstance(payload, WebhookCrawlCompleted) else []
+            data: list[FirecrawlPageData] = (
+                payload.data if isinstance(payload, WebhookCrawlCompleted) else []
+            )
             total_pages = len(data)
             logger.info(f"✓ Crawl completed: {crawl_id} ({total_pages} pages)")
 
@@ -236,18 +237,20 @@ async def firecrawl_webhook(
                     # Language filtering (if enabled)
                     if settings.ENABLE_LANGUAGE_FILTERING:
                         detected_lang = lang.detect_language(content)
-                        
+
                         # Check if language is allowed
-                        is_allowed = (
-                            detected_lang in settings.allowed_languages_list or
-                            (settings.LANGUAGE_FILTER_MODE == "lenient" and detected_lang == "unknown")
+                        is_allowed = detected_lang in settings.allowed_languages_list or (
+                            settings.LANGUAGE_FILTER_MODE == "lenient"
+                            and detected_lang == "unknown"
                         )
-                        
+
                         if not is_allowed:
                             skipped_count += 1
-                            skipped_languages[detected_lang] = skipped_languages.get(detected_lang, 0) + 1
+                            skipped_languages[detected_lang] = (
+                                skipped_languages.get(detected_lang, 0) + 1
+                            )
                             logger.info(f"🚫 FILTERED (batch, {detected_lang}): {source_url}")
-                            
+
                             # Mark as processed so we don't check again
                             await redis.mark_page_processed(crawl_id, source_url)
                             continue
@@ -255,31 +258,30 @@ async def firecrawl_webhook(
                             logger.debug(f"✅ ALLOWED (batch, {detected_lang}): {source_url}")
 
                     # Page passes all filters - add to batch
-                    documents.append({
-                        "content": content,
-                        "source_url": source_url,
-                        "metadata": metadata,
-                        "source_type": "crawl"
-                    })
-                
+                    documents.append(
+                        {
+                            "content": content,
+                            "source_url": source_url,
+                            "metadata": metadata,
+                            "source_type": "crawl",
+                        }
+                    )
+
                 # Log filtering statistics
                 if skipped_count > 0:
-                    logger.info(
-                        f"📊 Crawl {crawl_id}: {skipped_count}/{total_pages} pages skipped"
-                    )
-                
+                    logger.info(f"📊 Crawl {crawl_id}: {skipped_count}/{total_pages} pages skipped")
+
                 # Log language filtering details
                 if skipped_languages:
                     logger.warning(
                         f"🌍 Crawl {crawl_id}: Filtered {sum(skipped_languages.values())} "
                         f"non-English pages: {skipped_languages}"
                     )
-                
+
                 # Process new pages in batch mode
                 if documents:
                     logger.info(
-                        f"✅ Crawl {crawl_id}: Processing {len(documents)} "
-                        f"new pages in batch mode"
+                        f"✅ Crawl {crawl_id}: Processing {len(documents)} new pages in batch mode"
                     )
                     background_tasks.add_task(process_and_store_documents_batch, documents)
                 else:
@@ -287,7 +289,7 @@ async def firecrawl_webhook(
                         f"✓ Crawl {crawl_id}: All {total_pages} pages "
                         f"already processed (via streaming)"
                     )
-                
+
                 # Cleanup tracking data
                 await redis.cleanup_crawl_tracking(crawl_id)
 
@@ -300,11 +302,11 @@ async def firecrawl_webhook(
         elif event_type == "crawl.failed":
             error = payload.get("error", "Unknown error")
             logger.error(f"✗ Crawl failed: {crawl_id} - {error}")
-            
+
             # Cleanup tracking data on failure
             if crawl_id:
                 await redis.cleanup_crawl_tracking(crawl_id)
-            
+
             return {"status": "error", "error": error}
 
         else:
