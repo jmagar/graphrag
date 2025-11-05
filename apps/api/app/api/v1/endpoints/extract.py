@@ -13,14 +13,10 @@ from pydantic import BaseModel, Field, HttpUrl
 
 from app.services.firecrawl import FirecrawlService
 from app.services.document_processor import process_and_store_document
+from app.dependencies import get_firecrawl_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-def get_firecrawl_service() -> FirecrawlService:
-    """Dependency provider for FirecrawlService."""
-    return FirecrawlService()
 
 
 class ExtractRequest(BaseModel):

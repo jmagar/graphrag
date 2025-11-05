@@ -10,22 +10,13 @@ from httpx import TimeoutException, HTTPStatusError
 
 from app.services.firecrawl import FirecrawlService
 from app.services.document_processor import process_and_store_document
+from app.dependencies import get_firecrawl_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Valid Firecrawl formats according to their API
 VALID_FORMATS = {"markdown", "html", "rawHtml", "links", "screenshot"}
-
-
-def get_firecrawl_service() -> FirecrawlService:
-    """
-    Dependency injection provider for FirecrawlService.
-
-    Returns a new instance of FirecrawlService for each request.
-    This enables proper testing via dependency override.
-    """
-    return FirecrawlService()
 
 
 class ScrapeRequest(BaseModel):

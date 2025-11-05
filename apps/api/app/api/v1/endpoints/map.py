@@ -2,13 +2,13 @@
 Map endpoint for getting all URLs from a website using Firecrawl v2 API.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List, Dict, Any
 from app.services.firecrawl import FirecrawlService
+from app.dependencies import get_firecrawl_service
 
 router = APIRouter()
-firecrawl_service = FirecrawlService()
 
 
 class MapRequest(BaseModel):
@@ -28,7 +28,10 @@ class MapResponse(BaseModel):
 
 
 @router.post("/", response_model=MapResponse)
-async def map_website(request: MapRequest):
+async def map_website(
+    request: MapRequest,
+    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service),
+):
     """
     Map a website to get all URLs.
 

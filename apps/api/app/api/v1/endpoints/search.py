@@ -2,14 +2,14 @@
 Search endpoint for web search using Firecrawl v2 API.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from app.services.firecrawl import FirecrawlService
 from app.services.document_processor import process_and_store_documents_batch
+from app.dependencies import get_firecrawl_service
 
 router = APIRouter()
-firecrawl_service = FirecrawlService()
 
 
 class SearchRequest(BaseModel):
@@ -37,7 +37,11 @@ class SearchResponse(BaseModel):
 
 
 @router.post("/", response_model=SearchResponse)
-async def search_web(request: SearchRequest, background_tasks: BackgroundTasks):
+async def search_web(
+    request: SearchRequest,
+    background_tasks: BackgroundTasks,
+    firecrawl_service: FirecrawlService = Depends(get_firecrawl_service),
+):
     """
     Search the web and get full page content.
 
