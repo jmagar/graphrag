@@ -53,6 +53,9 @@ class GraphDBService:
 
         except Exception as e:
             logger.error(f"❌ Failed to connect to Neo4j: {e}")
+            logger.warning("⚠️ GraphDB features will be unavailable, but API will continue")
+            self._initialized = False  # Mark as not initialized but don't raise
+            logger.error(f"❌ Failed to connect to Neo4j: {e}")
             raise
 
     async def close(self) -> None:

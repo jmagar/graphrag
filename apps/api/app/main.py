@@ -56,6 +56,18 @@ async def lifespan(app: FastAPI):
     logger.info("  • TEI Embeddings: %s", settings.TEI_URL)
     logger.info("  • Neo4j: %s", settings.NEO4J_URI)
     logger.info("  • Redis: %s:%d", settings.REDIS_HOST, settings.REDIS_PORT)
+    logger.info("  • Webhook URL: %s", settings.WEBHOOK_BASE_URL)
+    
+    # Warn about localhost webhook URL
+    if "localhost" in settings.WEBHOOK_BASE_URL or "127.0.0.1" in settings.WEBHOOK_BASE_URL:
+        logger.warning("=" * 80)
+        logger.warning("⚠️  WARNING: Webhook URL uses localhost!")
+        logger.warning("⚠️  This will NOT work if Firecrawl is on a different host.")
+        logger.warning("⚠️  Current: %s", settings.WEBHOOK_BASE_URL)
+        logger.warning("⚠️  Crawl operations may fail silently.")
+        logger.warning("⚠️  Consider using your IP address instead (e.g., http://10.1.0.6:4400)")
+        logger.warning("=" * 80)
+    
     if settings.OLLAMA_URL:
         logger.info("  • Ollama: %s (model: %s)", settings.OLLAMA_URL, settings.OLLAMA_MODEL)
     logger.info("-" * 80)

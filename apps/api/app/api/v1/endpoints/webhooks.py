@@ -103,6 +103,15 @@ async def firecrawl_webhook(
     Security: Verifies X-Firecrawl-Signature header using HMAC-SHA256.
     Signature verification is MANDATORY in production mode.
     """
+    # Log webhook receipt immediately (before any processing)
+    logger.info(
+        "📨 Webhook received from Firecrawl",
+        extra={
+            "client_ip": request.client.host if request.client else "unknown",
+            "user_agent": request.headers.get("user-agent", "unknown"),
+        }
+    )
+    
     try:
         # Validate security configuration
         _validate_webhook_security()
@@ -112,12 +121,24 @@ async def firecrawl_webhook(
             body = await request.body()
             signature = request.headers.get("X-Firecrawl-Signature", "")
 
+            if not signature:
+                logger.error(
+                    "🚨 No webhook signature provided by Firecrawl",
+                    extra={
+                        "ip": request.client.host if request.client else "unknown",
+                        "headers": dict(request.headers),
+                    },
+                )
+                raise HTTPException(status_code=401, detail="Missing webhook signature")
+
             if not verify_webhook_signature(body, signature, settings.FIRECRAWL_WEBHOOK_SECRET):
                 logger.warning(
                     "🚨 Invalid webhook signature",
                     extra={
                         "ip": request.client.host if request.client else "unknown",
                         "signature": signature[:20] + "..." if len(signature) > 20 else signature,
+                        "body_length": len(body),
+                        "secret_configured": bool(settings.FIRECRAWL_WEBHOOK_SECRET),
                     },
                 )
                 raise HTTPException(status_code=401, detail="Invalid webhook signature")
@@ -213,6 +234,25 @@ async def firecrawl_webhook(
             )
             total_pages = len(data)
             logger.info(f"✓ Crawl completed: {crawl_id} ({total_pages} pages)")
+            
+            # Detect if we received pages in crawl.completed but NONE via crawl.page events
+            if settings.ENABLE_STREAMING_PROCESSING and total_pages > 0:
+                # Check how many pages were processed during streaming
+                processed_count = 0
+                for page in data:
+                    if await redis.is_page_processed(crawl_id, page.metadata.sourceURL):
+                        processed_count += 1
+                
+                if processed_count == 0:
+                    logger.error(
+                        f"⚠️ WEBHOOK DELIVERY ISSUE: Crawl {crawl_id} completed with "
+                        f"{total_pages} pages but 0 were received via crawl.page webhooks! "
+                        f"Webhook URL may be unreachable: {settings.WEBHOOK_BASE_URL}"
+                    )
+                    logger.error(
+                        f"⚠️ Verify Firecrawl can reach: "
+                        f"{settings.WEBHOOK_BASE_URL}/api/v1/webhooks/firecrawl"
+                    )
 
             # Process all pages in BATCH, skipping those already processed via streaming
             if data:

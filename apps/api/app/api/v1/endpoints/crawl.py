@@ -2,6 +2,7 @@
 Crawl management endpoints using Firecrawl v2 API.
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, Dict, Any, List
@@ -9,6 +10,7 @@ from app.services.firecrawl import FirecrawlService
 from app.core.config import settings
 from app.dependencies import get_firecrawl_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -59,11 +61,23 @@ async def start_crawl(
     stored in Qdrant.
     """
     try:
+        webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/v1/webhooks/firecrawl"
+        
         # Prepare crawl options
         crawl_options: Dict[str, Any] = {
             "url": str(request.url),
-            "webhook": f"{settings.WEBHOOK_BASE_URL}/api/v1/webhooks/firecrawl",
+            "webhook": webhook_url,
         }
+        
+        logger.info(
+            f"🚀 Starting crawl: {request.url}",
+            extra={
+                "crawl_url": str(request.url),
+                "webhook_url": webhook_url,
+                "max_depth": request.maxDiscoveryDepth,
+                "limit": request.limit,
+            }
+        )
 
         # Add optional parameters
         if request.includePaths:

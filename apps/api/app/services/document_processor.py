@@ -7,13 +7,12 @@ This service handles embedding generation and vector storage for all document so
 
 import hashlib
 import asyncio
-from datetime import datetime
+import logging
+from datetime import datetime, UTC
 from typing import Dict, Any, List
-from app.services.embeddings import EmbeddingsService
-from app.services.vector_db import VectorDBService
+from app.dependencies import get_embeddings_service, get_vector_db_service
 
-embeddings_service = EmbeddingsService()
-vector_db_service = VectorDBService()
+logger = logging.getLogger(__name__)
 
 # TEI Configuration Limits (from docker-compose.yaml)
 # --max-batch-requests: 80
@@ -41,27 +40,40 @@ async def process_and_store_documents_batch(documents: List[Dict[str, Any]]):
             - source_url: str (source URL of document)
             - metadata: dict (additional metadata)
             - source_type: str (scrape/search/extract/crawl)
+            
+    Raises:
+        RuntimeError: If services not initialized or embedding/storage fails
     """
     if not documents:
         return
 
+    # Get initialized singleton services via dependency injection
+    embeddings_service = get_embeddings_service()
+    vector_db_service = get_vector_db_service()
+    
+    # Validate services are initialized
+    if vector_db_service.client is None:
+        raise RuntimeError(
+            "VectorDBService not initialized. Call initialize() first or ensure app is started."
+        )
+
+    # Filter out empty documents
+    valid_docs = [doc for doc in documents if doc.get("content") and doc.get("source_url")]
+
+    if not valid_docs:
+        logger.info("No valid documents to process")
+        return
+
+    logger.info(f"Processing {len(valid_docs)} document(s)...")
+
     try:
-        # Filter out empty documents
-        valid_docs = [doc for doc in documents if doc.get("content") and doc.get("source_url")]
-
-        if not valid_docs:
-            print("No valid documents to process")
-            return
-
-        print(f"Processing {len(valid_docs)} document(s)...")
-
         # Add doc IDs and metadata
         for doc in valid_docs:
             doc["doc_id"] = hashlib.md5(doc["source_url"].encode()).hexdigest()
             if "metadata" not in doc:
                 doc["metadata"] = {}
             doc["metadata"]["source_type"] = doc["source_type"]
-            doc["metadata"]["indexed_at"] = datetime.utcnow().isoformat()
+            doc["metadata"]["indexed_at"] = datetime.now(UTC).isoformat()
 
         # Split into batches of 80 documents (TEI max-batch-requests)
         batches = [
@@ -69,7 +81,7 @@ async def process_and_store_documents_batch(documents: List[Dict[str, Any]]):
         ]
 
         if len(batches) > 1:
-            print(f"Split into {len(batches)} batch(es) of up to {MAX_BATCH_SIZE} documents")
+            logger.info(f"Split into {len(batches)} batch(es) of up to {MAX_BATCH_SIZE} documents")
 
         # Process batches in parallel (with concurrency limit)
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
@@ -78,7 +90,7 @@ async def process_and_store_documents_batch(documents: List[Dict[str, Any]]):
             async with semaphore:
                 batch_size = len(batch)
                 if len(batches) > 1:
-                    print(
+                    logger.info(
                         f"Processing batch {batch_num + 1}/{len(batches)} ({batch_size} documents)..."
                     )
 
@@ -94,18 +106,29 @@ async def process_and_store_documents_batch(documents: List[Dict[str, Any]]):
                 await vector_db_service.upsert_documents(batch)
 
                 if len(batches) > 1:
-                    print(f"✓ Batch {batch_num + 1}/{len(batches)} stored ({batch_size} documents)")
+                    logger.info(f"✓ Batch {batch_num + 1}/{len(batches)} stored ({batch_size} documents)")
 
         # Process all batches in parallel
         await asyncio.gather(*[process_batch(batch, i) for i, batch in enumerate(batches)])
 
-        print(f"✓ Successfully stored {len(valid_docs)} document(s)")
+        logger.info(f"✓ Successfully stored {len(valid_docs)} document(s)")
 
+    except RuntimeError as e:
+        # Service initialization errors - fail fast
+        logger.error(
+            f"Failed to process documents batch: Service initialization error: {str(e)}",
+            exc_info=True,
+            extra={"document_count": len(documents)},
+        )
+        raise
     except Exception as e:
-        print(f"✗ Failed to batch store documents: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+        # All other errors - log and fail fast
+        logger.error(
+            f"Failed to process documents batch: {str(e)}",
+            exc_info=True,
+            extra={"document_count": len(documents), "valid_document_count": len(valid_docs)},
+        )
+        raise
 
 
 async def process_and_store_document(
