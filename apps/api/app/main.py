@@ -216,6 +216,18 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Error closing VectorDBService: {e}")
 
     try:
+        await embeddings_service.close()
+        logger.info("✅ EmbeddingsService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing EmbeddingsService: {e}")
+
+    try:
+        await llm_service.close()
+        logger.info("✅ LLMService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing LLMService: {e}")
+
+    try:
         await redis_service.close()
         logger.info("✅ RedisService closed")
     except Exception as e:
@@ -263,11 +275,6 @@ async def health_check():
     return {
         "status": "healthy",
         "version": settings.VERSION,
-        "services": {
-            "firecrawl": settings.FIRECRAWL_URL,
-            "qdrant": settings.QDRANT_URL,
-            "tei": settings.TEI_URL,
-        },
     }
 
 

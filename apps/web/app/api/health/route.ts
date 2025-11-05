@@ -16,7 +16,7 @@ function getApiBaseUrl(): string {
 
 /**
  * GET /api/health
- * Returns full health information from the backend including service URLs
+ * Returns full health information from the backend
  */
 export async function GET() {
   const API_BASE_URL = getApiBaseUrl();
