@@ -3,15 +3,20 @@ Crawl management endpoints using Firecrawl v2 API.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
-from pydantic import BaseModel, HttpUrl
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
+from pydantic import BaseModel, HttpUrl, Field
 from typing import Optional, Dict, Any, List
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.services.firecrawl import FirecrawlService
 from app.core.config import settings
 from app.dependencies import get_firecrawl_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 class CrawlRequest(BaseModel):
@@ -20,8 +25,8 @@ class CrawlRequest(BaseModel):
     url: HttpUrl
     includePaths: Optional[List[str]] = None
     excludePaths: Optional[List[str]] = None
-    maxDiscoveryDepth: Optional[int] = None
-    limit: Optional[int] = 10000
+    maxDiscoveryDepth: Optional[int] = Field(None, ge=1, le=10, description="Maximum depth to crawl (1-10)")
+    limit: Optional[int] = Field(100, ge=1, le=10000, description="Maximum number of pages to crawl (1-10000)")
     crawlEntireDomain: Optional[bool] = False
     allowSubdomains: Optional[bool] = False
     scrapeOptions: Optional[Dict[str, Any]] = None
@@ -48,7 +53,9 @@ class CrawlStatusResponse(BaseModel):
 
 
 @router.post("/", response_model=CrawlResponse)
+@limiter.limit("5/minute")
 async def start_crawl(
+    http_request: Request,
     request: CrawlRequest,
     background_tasks: BackgroundTasks,
     firecrawl_service: FirecrawlService = Depends(get_firecrawl_service),
@@ -59,6 +66,8 @@ async def start_crawl(
     The crawl will run asynchronously and send webhooks to our backend
     as pages are crawled. Each page will be automatically embedded and
     stored in Qdrant.
+
+    Rate limit: 5 requests per minute per IP address
     """
     try:
         webhook_url = f"{settings.WEBHOOK_BASE_URL}/api/v1/webhooks/firecrawl"
