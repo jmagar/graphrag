@@ -2,11 +2,12 @@
 Scrape endpoint for single-page scraping using Firecrawl v2 API.
 """
 
+import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, HttpUrl, field_validator, ValidationError
 from typing import Optional, Dict, Any, List
-from httpx import TimeoutException, HTTPStatusError
+from httpx import TimeoutException, HTTPStatusError, ConnectError
 
 from app.services.firecrawl import FirecrawlService
 from app.services.document_processor import process_and_store_document
@@ -76,13 +77,28 @@ async def scrape_url(
 
         return {"success": result.get("success", True), "data": result.get("data", {})}
 
-    except TimeoutException as e:
-        logger.error(f"Timeout scraping URL {request.url}: {e}")
+    except ValidationError as e:
+        logger.exception(f"Validation error scraping URL {request.url}")
+        raise HTTPException(status_code=422, detail=f"Invalid scrape request: {str(e)}")
+
+    except (TimeoutException, asyncio.TimeoutError):
+        logger.exception(f"Timeout error scraping URL {request.url}")
         raise HTTPException(status_code=504, detail="Request timeout while scraping URL")
 
     except HTTPStatusError as e:
-        logger.error(f"HTTP error scraping URL {request.url}: {e}")
+        logger.exception(f"HTTP error scraping URL {request.url}")
         raise HTTPException(status_code=502, detail=f"Firecrawl API error: {str(e)}")
+
+    except ConnectError:
+        logger.exception(f"Connection error scraping URL {request.url}")
+        raise HTTPException(status_code=503, detail="Firecrawl service unavailable")
+
+    except KeyError as e:
+        logger.exception(f"Response parsing error scraping URL {request.url}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid response structure: missing field {str(e)}",
+        )
 
     except Exception:
         logger.exception(f"Unexpected error scraping URL {request.url}")

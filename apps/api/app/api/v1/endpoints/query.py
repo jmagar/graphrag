@@ -2,9 +2,12 @@
 RAG query endpoints for semantic search and LLM-powered responses.
 """
 
+import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from typing import List, Dict, Any, Optional
+from httpx import TimeoutException, HTTPStatusError, ConnectError
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from app.services.embeddings import EmbeddingsService
@@ -12,6 +15,7 @@ from app.services.vector_db import VectorDBService
 from app.services.llm import LLMService
 from app.dependencies import get_embeddings_service, get_vector_db_service, get_llm_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Rate limiter
@@ -110,7 +114,39 @@ async def query_knowledge_base(
             total_results=len(results),
         )
 
+    except ValidationError as e:
+        logger.exception("Validation error during query")
+        raise HTTPException(status_code=422, detail=f"Invalid query request: {str(e)}")
+
+    except (TimeoutException, asyncio.TimeoutError):
+        logger.exception("Timeout error during query")
+        raise HTTPException(
+            status_code=504, detail="Query timed out. Please try again with a shorter query or fewer results."
+        )
+
+    except (ConnectError, HTTPStatusError) as e:
+        logger.exception("Service connection error during query")
+        service_name = "embeddings or vector database"
+        if "ollama" in str(e).lower():
+            service_name = "LLM"
+        raise HTTPException(
+            status_code=503,
+            detail=f"{service_name} service unavailable: {str(e)}"
+        )
+
+    except ValueError as e:
+        logger.exception("Value error during query processing")
+        raise HTTPException(status_code=400, detail=f"Invalid query parameters: {str(e)}")
+
+    except KeyError as e:
+        logger.exception("Data access error during query")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid data structure: missing field {str(e)}",
+        )
+
     except Exception as e:
+        logger.exception("Unexpected error during query")
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
 
@@ -120,5 +156,17 @@ async def get_collection_info(vector_db: VectorDBService = Depends(get_vector_db
     try:
         info = await vector_db.get_collection_info()
         return info
+
+    except (TimeoutException, asyncio.TimeoutError):
+        logger.exception("Timeout error fetching collection info")
+        raise HTTPException(
+            status_code=504, detail="Request timed out. Please try again."
+        )
+
+    except ConnectError:
+        logger.exception("Connection error fetching collection info")
+        raise HTTPException(status_code=503, detail="Vector database service unavailable")
+
     except Exception as e:
+        logger.exception("Unexpected error fetching collection info")
         raise HTTPException(status_code=500, detail=f"Failed to get collection info: {str(e)}")

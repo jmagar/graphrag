@@ -2,13 +2,17 @@
 Search endpoint for web search using Firecrawl v2 API.
 """
 
+import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from typing import Optional, List
+from httpx import TimeoutException, HTTPStatusError, ConnectError
 from app.services.firecrawl import FirecrawlService
 from app.services.document_processor import process_and_store_documents_batch
 from app.dependencies import get_firecrawl_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -86,5 +90,31 @@ async def search_web(
 
         return {"success": True, "results": results, "total": len(results)}
 
+    except ValidationError as e:
+        logger.exception("Validation error during search")
+        raise HTTPException(status_code=422, detail=f"Invalid search request: {str(e)}")
+
+    except (TimeoutException, asyncio.TimeoutError):
+        logger.exception("Timeout error during search")
+        raise HTTPException(
+            status_code=504, detail="Search request timed out. Please try again."
+        )
+
+    except (ConnectError, HTTPStatusError) as e:
+        logger.exception("Network error during search")
+        status_code = 502 if isinstance(e, ConnectError) else getattr(e.response, 'status_code', 502)
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Failed to connect to Firecrawl search service: {str(e)}"
+        )
+
+    except KeyError as e:
+        logger.exception("Response parsing error during search")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid response from search service: missing field {str(e)}",
+        )
+
     except Exception as e:
+        logger.exception("Unexpected error during search")
         raise HTTPException(status_code=500, detail=f"Failed to search: {str(e)}")

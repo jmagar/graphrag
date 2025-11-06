@@ -2,10 +2,12 @@
 Crawl management endpoints using Firecrawl v2 API.
 """
 
+import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Request
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, HttpUrl, Field, ValidationError
 from typing import Optional, Dict, Any, List
+from httpx import TimeoutException, HTTPStatusError, ConnectError
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from app.services.firecrawl import FirecrawlService
@@ -115,7 +117,33 @@ async def start_crawl(
             "url": result["url"],
         }
 
+    except ValidationError as e:
+        logger.exception("Validation error during crawl initiation")
+        raise HTTPException(status_code=422, detail=f"Invalid crawl request: {str(e)}")
+
+    except (TimeoutException, asyncio.TimeoutError):
+        logger.exception("Timeout error during crawl initiation")
+        raise HTTPException(
+            status_code=504, detail="Crawl initiation timed out. Please try again."
+        )
+
+    except (ConnectError, HTTPStatusError) as e:
+        logger.exception("Network error during crawl initiation")
+        status_code = 502 if isinstance(e, ConnectError) else getattr(e.response, 'status_code', 502)
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Failed to connect to Firecrawl service: {str(e)}"
+        )
+
+    except KeyError as e:
+        logger.exception("Response parsing error during crawl initiation")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid response from Firecrawl service: missing field {str(e)}",
+        )
+
     except Exception as e:
+        logger.exception("Unexpected error during crawl initiation")
         raise HTTPException(status_code=500, detail=f"Failed to start crawl: {str(e)}")
 
 
@@ -131,7 +159,39 @@ async def get_crawl_status(
     try:
         status = await firecrawl_service.get_crawl_status(crawl_id)
         return CrawlStatusResponse(**status)
+
+    except ValidationError as e:
+        logger.exception("Validation error parsing crawl status")
+        raise HTTPException(status_code=422, detail=f"Invalid status response: {str(e)}")
+
+    except (TimeoutException, asyncio.TimeoutError):
+        logger.exception("Timeout error fetching crawl status")
+        raise HTTPException(
+            status_code=504, detail="Request timed out. Please try again."
+        )
+
+    except HTTPStatusError as e:
+        logger.exception("HTTP error fetching crawl status")
+        if e.response.status_code == 404:
+            raise HTTPException(status_code=404, detail=f"Crawl job '{crawl_id}' not found")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Firecrawl service error: {str(e)}"
+        )
+
+    except ConnectError:
+        logger.exception("Connection error fetching crawl status")
+        raise HTTPException(status_code=503, detail="Firecrawl service unavailable")
+
+    except KeyError as e:
+        logger.exception("Response parsing error for crawl status")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid response structure: missing field {str(e)}",
+        )
+
     except Exception as e:
+        logger.exception("Unexpected error fetching crawl status")
         raise HTTPException(status_code=500, detail=f"Failed to get crawl status: {str(e)}")
 
 
@@ -143,5 +203,26 @@ async def cancel_crawl(
     try:
         await firecrawl_service.cancel_crawl(crawl_id)
         return {"success": True, "message": "Crawl cancelled successfully"}
+
+    except (TimeoutException, asyncio.TimeoutError):
+        logger.exception("Timeout error cancelling crawl")
+        raise HTTPException(
+            status_code=504, detail="Cancel request timed out. Please try again."
+        )
+
+    except HTTPStatusError as e:
+        logger.exception("HTTP error cancelling crawl")
+        if e.response.status_code == 404:
+            raise HTTPException(status_code=404, detail=f"Crawl job '{crawl_id}' not found")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Firecrawl service error: {str(e)}"
+        )
+
+    except ConnectError:
+        logger.exception("Connection error cancelling crawl")
+        raise HTTPException(status_code=503, detail="Firecrawl service unavailable")
+
     except Exception as e:
+        logger.exception("Unexpected error cancelling crawl")
         raise HTTPException(status_code=500, detail=f"Failed to cancel crawl: {str(e)}")
