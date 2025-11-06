@@ -3,9 +3,12 @@ FastAPI main application entry point.
 """
 
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.api.v1.router import api_router
 from app.db.database import init_db, close_db
@@ -216,6 +219,18 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Error closing VectorDBService: {e}")
 
     try:
+        await embeddings_service.close()
+        logger.info("✅ EmbeddingsService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing EmbeddingsService: {e}")
+
+    try:
+        await llm_service.close()
+        logger.info("✅ LLMService closed")
+    except Exception as e:
+        logger.error(f"❌ Error closing LLMService: {e}")
+
+    try:
         await redis_service.close()
         logger.info("✅ RedisService closed")
     except Exception as e:
@@ -244,12 +259,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting configuration
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
 )
 
@@ -263,11 +283,6 @@ async def health_check():
     return {
         "status": "healthy",
         "version": settings.VERSION,
-        "services": {
-            "firecrawl": settings.FIRECRAWL_URL,
-            "qdrant": settings.QDRANT_URL,
-            "tei": settings.TEI_URL,
-        },
     }
 
 

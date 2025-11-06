@@ -54,9 +54,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:4300",
         "http://localhost:4301",
-        "http://10.1.0.6:4300",
-        "http://10.1.0.6:4301",
     ]
+    CORS_EXTRA_ORIGINS: str = ""  # Additional origins (comma-separated)
 
     # Firecrawl v2 API
     FIRECRAWL_URL: str
@@ -82,7 +81,7 @@ class Settings(BaseSettings):
     WEBHOOK_BASE_URL: str = "http://localhost:4400"
 
     # Redis Configuration
-    REDIS_HOST: str = "steamy-wsl"
+    REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 4202  # Redis container exposed on port 4202
     REDIS_DB: int = 0
     REDIS_PASSWORD: str = ""
@@ -93,7 +92,7 @@ class Settings(BaseSettings):
     # Neo4j Graph Database
     NEO4J_URI: str = "bolt://localhost:7688"
     NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = "testpassword123"
+    NEO4J_PASSWORD: str  # Required - no default for security
 
     # Feature Flags
     ENABLE_STREAMING_PROCESSING: bool = True
@@ -182,6 +181,12 @@ class Settings(BaseSettings):
                 "ℹ️ Both streaming and language filtering enabled. "
                 "Pages will be filtered before processing."
             )
+
+        # Add extra CORS origins if provided
+        if self.CORS_EXTRA_ORIGINS:
+            extra_origins = [origin.strip() for origin in self.CORS_EXTRA_ORIGINS.split(",") if origin.strip()]
+            self.CORS_ORIGINS.extend(extra_origins)
+            logger.info(f"✅ Added {len(extra_origins)} extra CORS origins")
 
         return self
 

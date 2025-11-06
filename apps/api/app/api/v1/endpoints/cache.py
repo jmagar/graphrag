@@ -2,12 +2,16 @@
 Cache management endpoints for query result caching.
 """
 
+import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Path
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from typing import Dict, Any
+from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
 from app.services.query_cache import QueryCache
 from app.dependencies import get_query_cache
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -43,7 +47,21 @@ async def get_cache_stats(query_cache: QueryCache = Depends(get_query_cache)):
     try:
         stats = query_cache.get_stats()
         return CacheStatsResponse(**stats)
+
+    except ValidationError as e:
+        logger.exception("Validation error getting cache stats")
+        raise HTTPException(status_code=422, detail=f"Invalid stats response: {str(e)}")
+
+    except RedisConnectionError:
+        logger.exception("Redis connection error getting cache stats")
+        raise HTTPException(status_code=503, detail="Cache service unavailable")
+
+    except RedisError as e:
+        logger.exception("Redis error getting cache stats")
+        raise HTTPException(status_code=500, detail=f"Cache error: {str(e)}")
+
     except Exception as e:
+        logger.exception("Unexpected error getting cache stats")
         raise HTTPException(status_code=500, detail=f"Failed to get cache stats: {str(e)}")
 
 
@@ -67,7 +85,21 @@ async def invalidate_all_cache(query_cache: QueryCache = Depends(get_query_cache
             deleted_count=deleted_count,
             message=f"Invalidated {deleted_count} cache entries",
         )
+
+    except asyncio.TimeoutError:
+        logger.exception("Timeout error invalidating all cache")
+        raise HTTPException(status_code=504, detail="Cache invalidation timed out. Please try again.")
+
+    except RedisConnectionError:
+        logger.exception("Redis connection error invalidating all cache")
+        raise HTTPException(status_code=503, detail="Cache service unavailable")
+
+    except RedisError as e:
+        logger.exception("Redis error invalidating all cache")
+        raise HTTPException(status_code=500, detail=f"Cache error: {str(e)}")
+
     except Exception as e:
+        logger.exception("Unexpected error invalidating all cache")
         raise HTTPException(
             status_code=500, detail=f"Failed to invalidate cache: {str(e)}"
         )
@@ -99,7 +131,21 @@ async def invalidate_collection_cache(
             deleted_count=deleted_count,
             message=f"Invalidated {deleted_count} cache entries for collection '{collection}'",
         )
+
+    except asyncio.TimeoutError:
+        logger.exception(f"Timeout error invalidating cache for collection '{collection}'")
+        raise HTTPException(status_code=504, detail="Cache invalidation timed out. Please try again.")
+
+    except RedisConnectionError:
+        logger.exception(f"Redis connection error invalidating cache for collection '{collection}'")
+        raise HTTPException(status_code=503, detail="Cache service unavailable")
+
+    except RedisError as e:
+        logger.exception(f"Redis error invalidating cache for collection '{collection}'")
+        raise HTTPException(status_code=500, detail=f"Cache error: {str(e)}")
+
     except Exception as e:
+        logger.exception(f"Unexpected error invalidating cache for collection '{collection}'")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to invalidate cache for collection '{collection}': {str(e)}",
@@ -117,7 +163,17 @@ async def reset_cache_stats(query_cache: QueryCache = Depends(get_query_cache)) 
     try:
         query_cache.reset_stats()
         return {"message": "Cache statistics reset successfully"}
+
+    except RedisConnectionError:
+        logger.exception("Redis connection error resetting cache stats")
+        raise HTTPException(status_code=503, detail="Cache service unavailable")
+
+    except RedisError as e:
+        logger.exception("Redis error resetting cache stats")
+        raise HTTPException(status_code=500, detail=f"Cache error: {str(e)}")
+
     except Exception as e:
+        logger.exception("Unexpected error resetting cache stats")
         raise HTTPException(
             status_code=500, detail=f"Failed to reset cache stats: {str(e)}"
         )

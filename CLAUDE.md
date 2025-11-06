@@ -347,12 +347,43 @@ All features must be designed with these priorities:
 
 **Testing Strategy**
 
-Tests not yet implemented. When adding:
-- Backend: pytest with httpx async client for API testing
-- Frontend: Jest + React Testing Library for components
-- Integration: Test webhook flow with mock Firecrawl responses
+**Status**: Comprehensive test suite with 987 test functions across 78 test files
+
+**Backend Testing** (596 test functions across 45 files):
+- pytest with httpx async client for API testing
+- Sophisticated mocking with respx (HTTP), fakeredis (Redis), unittest.mock
+- 73 model validation tests with 100% coverage
+- 2785 lines of integration tests
+- Comprehensive fixtures in conftest.py (461 lines)
+- Test coverage: 78/100 (Good)
+
+**Frontend Testing** (391 test functions across 33 files):
+- Jest + React Testing Library for components
+- Component tests for chat messages, headers, citations
+- Hook tests (useSystemStatus, useMediaQuery)
+- Security tests (XSS prevention)
+- 70% coverage threshold configured
+- Test coverage: 60/100 (Fair, needs expansion)
+
+**Test Coverage Gaps**:
+- Backend: cache.py, extract.py, map.py, query.py endpoints need tests
+- Frontend: ChatInput.tsx, ClientLayout.tsx, main page.tsx need tests
 
 **TDD Enforcement**: No PR should be merged without tests. Write the test first, watch it fail, then implement.
+
+**Running Tests**:
+```bash
+# Backend
+cd apps/api
+uv run pytest                  # Run all tests except integration
+uv run pytest -m integration  # Run integration tests only
+uv run pytest --cov           # Run with coverage report
+
+# Frontend
+cd apps/web
+npm test                      # Run Jest tests
+npm run test:watch           # Run in watch mode
+```
 
 ## Environment Configuration
 
